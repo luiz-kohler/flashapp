@@ -1,7 +1,7 @@
-import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -15,8 +15,11 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 export default function DecksScreen() {
   const scheme = useColorScheme() ?? 'light';
   const colors = Colors[scheme];
-  // Live query: re-renders automatically whenever decks/cards change.
-  const { data: decks } = useLiveQuery(decksWithCounts());
+  // useLiveQuery only reacts to its own FROM table (decks), so per-deck card
+  // counts wouldn't update. Re-read on focus and after each mutation instead.
+  const [decks, setDecks] = useState(() => decksWithCounts().all());
+  const refresh = useCallback(() => setDecks(decksWithCounts().all()), []);
+  useFocusEffect(useCallback(() => refresh(), [refresh]));
 
   function handleAddDeck() {
     Alert.prompt('Novo deck', 'Como vai se chamar?', (name) => {
@@ -24,6 +27,7 @@ export default function DecksScreen() {
       if (trimmed) {
         createDeck(trimmed);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        refresh();
       }
     });
   }
@@ -58,7 +62,7 @@ export default function DecksScreen() {
             </ThemedText>
           }
           renderItem={({ item }) => (
-            <SwipeToDelete radius={20} onConfirm={() => deleteDeck(item.id)}>
+            <SwipeToDelete radius={20} onConfirm={() => { deleteDeck(item.id); refresh(); }}>
             <Pressable
               onPress={() => {
                 Haptics.selectionAsync();
