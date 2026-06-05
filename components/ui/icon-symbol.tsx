@@ -27,6 +27,8 @@ const MAPPING = {
   'checkmark.circle.fill': 'check-circle',
   sparkles: 'auto-awesome',
   xmark: 'close',
+  shuffle: 'shuffle',
+  'clock.arrow.circlepath': 'history',
 } as IconMapping;
 
 /**

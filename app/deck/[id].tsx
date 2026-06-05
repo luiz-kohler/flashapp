@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActionSheetIOS, FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,7 +16,6 @@ import { cardsInDeck, deleteCard, getDeck, updateDeck } from '@/db/queries';
 import type { Card } from '@/db/schema';
 import { EMOJIS } from '@/lib/emojis';
 import { State } from '@/lib/fsrs';
-import { DAILY_GOAL } from '@/lib/progress';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function DeckScreen() {
@@ -28,6 +27,11 @@ export default function DeckScreen() {
   const [deck, setDeck] = useState(() => getDeck(deckId));
   const [cards, setCards] = useState<Card[]>(() => cardsInDeck(deckId).all());
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Sort para a lista "Todos os cards". 'recent' = criados mais recentes primeiro
+  // (default, igual lista de músicas curtidas do Spotify), 'shuffle' = ordem aleatória.
+  // shuffleSeed permite re-embaralhar quando o usuário toca de novo no ícone de shuffle.
+  const [sortMode, setSortMode] = useState<'recent' | 'shuffle'>('recent');
+  const [shuffleSeed, setShuffleSeed] = useState(0);
 
   // drizzle's useLiveQuery only reacts to its own FROM table, so we re-read
   // explicitly: on focus (e.g. returning from import) and after each mutation.
@@ -48,7 +52,40 @@ export default function DeckScreen() {
   const now = Date.now();
   const all = cards;
   const dueCount = all.filter((c) => c.due.getTime() <= now).length;
-  const sessionCount = Math.min(dueCount, DAILY_GOAL); // a session studies at most 21
+
+  // Ordena a lista visível conforme o sortMode. Em 'shuffle' usamos um
+  // Fisher–Yates determinístico por shuffleSeed pra ordem ficar estável entre
+  // re-renders (até o usuário tocar de novo no ícone, que troca o seed).
+  const sortedCards = useMemo(() => {
+    if (sortMode === 'recent') {
+      return [...cards].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    }
+    const arr = [...cards];
+    let s = shuffleSeed || 1;
+    const rand = () => {
+      s = (s * 9301 + 49297) % 233280;
+      return s / 233280;
+    };
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }, [cards, sortMode, shuffleSeed]);
+
+  function toggleShuffle() {
+    Haptics.selectionAsync();
+    if (sortMode === 'shuffle') {
+      setShuffleSeed((s) => s + 1); // já em shuffle: re-embaralha
+    } else {
+      setSortMode('shuffle');
+      setShuffleSeed(Date.now());
+    }
+  }
+  function pickRecent() {
+    Haptics.selectionAsync();
+    setSortMode('recent');
+  }
 
   function handleAddCard() {
     router.push({ pathname: '/new-card/[deckId]', params: { deckId: String(deckId) } });
@@ -122,15 +159,13 @@ export default function DeckScreen() {
           </ThemedText>
         </View>
 
-        {/* Primary CTA */}
+        {/* Primary CTA — compacto, alinhado à esquerda (estilo botão de play do Spotify). */}
         {dueCount > 0 ? (
           <Pressable
             onPress={startStudy}
             style={({ pressed }) => [styles.cta, { backgroundColor: colors.tint, opacity: pressed ? 0.85 : 1 }]}>
-            <IconSymbol name="play.fill" size={20} color="#fff" />
-            <ThemedText style={styles.ctaText}>
-              Bora! {sessionCount} {sessionCount === 1 ? 'card' : 'cards'}
-            </ThemedText>
+            <IconSymbol name="play.fill" size={18} color="#fff" />
+            <ThemedText style={styles.ctaText}>Bora!</ThemedText>
           </Pressable>
         ) : (
           <View style={[styles.cta, styles.ctaDone]}>
@@ -140,12 +175,31 @@ export default function DeckScreen() {
           </View>
         )}
 
-        <ThemedText style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-          TODOS OS CARDS
-        </ThemedText>
+        <View style={styles.sectionHeader}>
+          <ThemedText style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+            TODOS OS CARDS
+          </ThemedText>
+          {/* Sort: só ícones, estilo Spotify (o ativo acende na cor de destaque). */}
+          <View style={styles.sortRow}>
+            <Pressable onPress={pickRecent} hitSlop={10} style={styles.sortBtn}>
+              <IconSymbol
+                name="clock.arrow.circlepath"
+                size={18}
+                color={sortMode === 'recent' ? accent : colors.textSecondary}
+              />
+            </Pressable>
+            <Pressable onPress={toggleShuffle} hitSlop={10} style={styles.sortBtn}>
+              <IconSymbol
+                name="shuffle"
+                size={18}
+                color={sortMode === 'shuffle' ? accent : colors.textSecondary}
+              />
+            </Pressable>
+          </View>
+        </View>
 
         <FlatList
-          data={cards}
+          data={sortedCards}
           keyExtractor={(c) => String(c.id)}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
@@ -222,22 +276,30 @@ const styles = StyleSheet.create({
   title: { fontSize: 30, fontWeight: '700', lineHeight: 36 },
   subtitle: { fontSize: 14 },
   cta: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.two,
-    height: 54,
-    borderRadius: 16,
+    gap: Spacing.one,
+    height: 40,
+    paddingHorizontal: Spacing.three,
+    borderRadius: 999,
   },
-  ctaDone: { backgroundColor: 'transparent', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(128,128,128,0.3)' },
-  ctaText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  ctaDone: { alignSelf: 'stretch', justifyContent: 'center', backgroundColor: 'transparent', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(128,128,128,0.3)' },
+  ctaText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing.four,
+    marginBottom: Spacing.two,
+  },
   sectionLabel: {
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.5,
-    marginTop: Spacing.four,
-    marginBottom: Spacing.two,
   },
+  sortRow: { flexDirection: 'row', gap: Spacing.two },
+  sortBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   list: { gap: Spacing.two, paddingBottom: 120 },
   empty: { textAlign: 'center', marginTop: Spacing.five, fontSize: 15 },
   cardRow: {
