@@ -16,12 +16,98 @@ import type { Card } from '@/db/schema';
 import { Rating, type ReviewGrade } from '@/lib/fsrs';
 import { DAILY_GOAL, xpForRating } from '@/lib/progress';
 
-const RATINGS: { grade: ReviewGrade; label: string; color: string; rgb: string }[] = [
-  { grade: Rating.Again, label: 'Again', color: '#FF453A', rgb: '255,69,58' },
-  { grade: Rating.Hard, label: 'Hard', color: '#FFD60A', rgb: '255,214,10' },
-  { grade: Rating.Good, label: 'Good', color: '#0A84FF', rgb: '10,132,255' },
-  { grade: Rating.Easy, label: 'Easy', color: '#32D74B', rgb: '50,215,75' },
-];
+// Only two ratings are surfaced in the UI: thumbs-down maps to Again (re-queues
+// the card and counts as a miss) and thumbs-up to Good (the standard correct
+// answer in FSRS). Hard and Easy still exist in the engine but aren't exposed
+// — the simplified interaction mirrors iOS-style "like / don't like" controls.
+const THUMBS_DOWN_RGB = '255,69,58';
+const THUMBS_UP_RGB = '50,215,75';
+const THUMBS_DOWN_COLOR = '#FF453A';
+const THUMBS_UP_COLOR = '#32D74B';
+
+function RatingButton({
+  rgb,
+  color,
+  icon,
+  onPress,
+}: {
+  rgb: string;
+  color: string;
+  icon: 'hand.thumbsup.fill' | 'hand.thumbsdown.fill';
+  onPress: () => void;
+}) {
+  // Two animated layers per button:
+  //   - `scale` drives the press-down/spring-back of the button itself
+  //   - `haloScale`/`haloOpacity` drive a one-shot ring that expands and fades
+  //     outward when the user taps, giving the iOS-style "ripple" feedback.
+  const scale = useRef(new Animated.Value(1)).current;
+  const haloScale = useRef(new Animated.Value(0.8)).current;
+  const haloOpacity = useRef(new Animated.Value(0)).current;
+
+  function handlePressIn() {
+    Animated.spring(scale, {
+      toValue: 0.9,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 0,
+    }).start();
+  }
+
+  function handlePressOut() {
+    // Tension/friction tuned to overshoot 1.0 slightly — feels alive, not stiff.
+    Animated.spring(scale, {
+      toValue: 1,
+      useNativeDriver: true,
+      friction: 3,
+      tension: 200,
+    }).start();
+  }
+
+  function handlePress() {
+    haloScale.setValue(0.85);
+    haloOpacity.setValue(0.55);
+    Animated.parallel([
+      Animated.timing(haloScale, { toValue: 1.55, duration: 380, useNativeDriver: true }),
+      Animated.timing(haloOpacity, { toValue: 0, duration: 380, useNativeDriver: true }),
+    ]).start();
+    // Short delay so the press animation is visible before the next card replaces
+    // these buttons. 130ms is long enough to register the bounce, short enough
+    // to still feel snappy during rapid review sessions.
+    setTimeout(onPress, 130);
+  }
+
+  return (
+    <Pressable
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={handlePress}
+      hitSlop={12}
+      style={styles.ratingWrap}>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.ratingHalo,
+          {
+            backgroundColor: `rgba(${rgb},1)`,
+            opacity: haloOpacity,
+            transform: [{ scale: haloScale }],
+          },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.ratingBtn,
+          {
+            backgroundColor: `rgba(${rgb},0.22)`,
+            borderColor: `rgba(${rgb},0.55)`,
+            transform: [{ scale }],
+          },
+        ]}>
+        <IconSymbol name={icon} size={38} color={color} />
+      </Animated.View>
+    </Pressable>
+  );
+}
 
 export default function StudyScreen() {
   const { deckId, practice, sort } = useLocalSearchParams<{ deckId: string; practice?: string; sort?: string }>();
@@ -46,14 +132,10 @@ export default function StudyScreen() {
 
   const sReveal = useAudioPlayer(require('@/assets/sounds/reveal.wav'));
   const sAgain = useAudioPlayer(require('@/assets/sounds/again.wav'));
-  const sHard = useAudioPlayer(require('@/assets/sounds/hard.wav'));
   const sGood = useAudioPlayer(require('@/assets/sounds/good.wav'));
-  const sEasy = useAudioPlayer(require('@/assets/sounds/easy.wav'));
   const soundByGrade: Record<number, ReturnType<typeof useAudioPlayer>> = {
     [Rating.Again]: sAgain,
-    [Rating.Hard]: sHard,
     [Rating.Good]: sGood,
-    [Rating.Easy]: sEasy,
   };
   useEffect(() => {
     setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
@@ -174,22 +256,18 @@ export default function StudyScreen() {
               </Pressable>
             ) : (
               <View style={styles.ratings}>
-                {RATINGS.map((r) => (
-                  <Pressable
-                    key={r.grade}
-                    onPress={() => rate(r.grade)}
-                    style={({ pressed }) => [
-                      styles.ratingBtn,
-                      {
-                        backgroundColor: `rgba(${r.rgb},0.18)`,
-                        borderColor: `rgba(${r.rgb},0.45)`,
-                        opacity: pressed ? 0.75 : 1,
-                        transform: [{ scale: pressed ? 0.97 : 1 }],
-                      },
-                    ]}>
-                    <ThemedText style={[styles.ratingLabel, { color: r.color }]}>{r.label}</ThemedText>
-                  </Pressable>
-                ))}
+                <RatingButton
+                  rgb={THUMBS_DOWN_RGB}
+                  color={THUMBS_DOWN_COLOR}
+                  icon="hand.thumbsdown.fill"
+                  onPress={() => rate(Rating.Again)}
+                />
+                <RatingButton
+                  rgb={THUMBS_UP_RGB}
+                  color={THUMBS_UP_COLOR}
+                  icon="hand.thumbsup.fill"
+                  onPress={() => rate(Rating.Good)}
+                />
               </View>
             )}
           </View>
@@ -261,20 +339,31 @@ const styles = StyleSheet.create({
 
   ratings: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.one,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: Spacing.five,
+    paddingVertical: Spacing.two,
+  },
+  ratingWrap: {
+    width: 88,
+    height: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   ratingBtn: {
-    width: `48%`,
-    flexGrow: 1,
-    height: 64,
-    borderRadius: 18,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
   },
-  ratingLabel: { fontSize: 17, fontWeight: '700', textAlign: 'center', letterSpacing: 0.2 },
+  ratingHalo: {
+    position: 'absolute',
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+  },
 
   doneWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two },
   doneTitle: { color: '#fff', fontSize: 26, fontWeight: '700', marginTop: Spacing.two },

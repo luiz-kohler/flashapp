@@ -29,6 +29,8 @@ const MAPPING = {
   xmark: 'close',
   shuffle: 'shuffle',
   'clock.arrow.circlepath': 'history',
+  'hand.thumbsup.fill': 'thumb-up',
+  'hand.thumbsdown.fill': 'thumb-down',
 } as IconMapping;
 
 /**
