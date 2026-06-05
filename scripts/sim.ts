@@ -54,9 +54,9 @@ function getDueCards(deckId: number, now: Date): Card[] {
     .orderBy(cards.due)
     .all();
 }
-// Real getStudyQueue shuffles; for these tests the SET matters, not the order.
+// Real getStudyQueue shuffles then caps at 21; order doesn't matter for tests.
 function getStudyQueue(deckId: number, now: Date): Card[] {
-  return getDueCards(deckId, now);
+  return getDueCards(deckId, now).slice(0, DAILY_GOAL);
 }
 function getAllCardsForPractice(deckId: number, now: Date): Card[] {
   return db.select().from(cards).where(eq(cards.deckId, deckId)).all();
@@ -87,16 +87,16 @@ const DAY = 86_400_000;
 const t0 = new Date('2026-06-04T09:00:00Z');
 
 // === S1: no hard cap — all due cards; practice includes not-due =============
-console.log('\nS1 — Sessão sem limite + prática (rever todos)');
+console.log('\nS1 — Sessão limitada a 21 + prática (rever todos, sem cap)');
 {
   const d = createDeck('Cap');
   for (let i = 0; i < 30; i++) createCard(d.id, `q${i}`, `a${i}`, t0);
-  check('30 devidos → getStudyQueue traz todos (sem cap)', getStudyQueue(d.id, t0).length === 30, `(got ${getStudyQueue(d.id, t0).length})`);
+  check('30 devidos → sessão limita a 21', getStudyQueue(d.id, t0).length === 21, `(got ${getStudyQueue(d.id, t0).length})`);
   // Review one as Good so it's no longer due "now".
   review(getDueCards(d.id, t0)[0], Rating.Good, t0);
-  check('Após revisar 1, devidos caem para 29', getStudyQueue(d.id, t0).length === 29, `(got ${getStudyQueue(d.id, t0).length})`);
-  check('Prática (rever todos) inclui não-devidos (30)', getAllCardsForPractice(d.id, t0).length === 30);
-  check('Meta diária DAILY_GOAL é 21', DAILY_GOAL === 21);
+  check('Após revisar 1, devidos (getDueCards) = 29', getDueCards(d.id, t0).length === 29, `(got ${getDueCards(d.id, t0).length})`);
+  check('Prática (rever todos) é uncapped (30)', getAllCardsForPractice(d.id, t0).length === 30);
+  check('DAILY_GOAL é 21', DAILY_GOAL === 21);
 }
 
 // === S2: ordering — reviews before new, ascending retrievability ===========

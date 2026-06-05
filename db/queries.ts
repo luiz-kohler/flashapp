@@ -2,6 +2,7 @@ import { and, desc, eq, lte, sql } from 'drizzle-orm';
 
 import { initialCardState, reviewCard, type ReviewGrade } from '@/lib/fsrs';
 import { randomEmoji } from '@/lib/emojis';
+import { DAILY_GOAL } from '@/lib/progress';
 import { db } from './client';
 import { cards, decks, reviewLogs, type Card } from './schema';
 
@@ -35,11 +36,11 @@ export function cardsInDeck(deckId: number) {
   return db.select().from(cards).where(eq(cards.deckId, deckId)).orderBy(desc(cards.createdAt));
 }
 
-// The study queue: ALL due cards, shuffled (random order each session). No cap —
-// 21 is a daily goal (see lib/progress), not a limit. FSRS still decides WHICH
-// cards are due and WHEN they return; only the within-session order is random.
+// The study queue: due cards, shuffled, capped at 21 per session so studying
+// never gets tiring. FSRS still decides WHICH cards are due and WHEN they return;
+// the within-session order is random. (Practice mode below is uncapped.)
 export function getStudyQueue(deckId: number): Card[] {
-  return shuffle(getDueCards(deckId));
+  return shuffle(getDueCards(deckId)).slice(0, DAILY_GOAL);
 }
 
 // Practice mode: every card in the deck (even not-due), shuffled. Re-review freely.

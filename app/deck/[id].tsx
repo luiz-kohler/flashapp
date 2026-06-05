@@ -16,6 +16,7 @@ import { cardsInDeck, deleteCard, getDeck, updateDeck } from '@/db/queries';
 import type { Card } from '@/db/schema';
 import { EMOJIS } from '@/lib/emojis';
 import { State } from '@/lib/fsrs';
+import { DAILY_GOAL } from '@/lib/progress';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function DeckScreen() {
@@ -47,6 +48,7 @@ export default function DeckScreen() {
   const now = Date.now();
   const all = cards;
   const dueCount = all.filter((c) => c.due.getTime() <= now).length;
+  const sessionCount = Math.min(dueCount, DAILY_GOAL); // a session studies at most 21
 
   function handleAddCard() {
     router.push({ pathname: '/new-card/[deckId]', params: { deckId: String(deckId) } });
@@ -116,7 +118,7 @@ export default function DeckScreen() {
             style={({ pressed }) => [styles.cta, { backgroundColor: accent, opacity: pressed ? 0.85 : 1 }]}>
             <IconSymbol name="play.fill" size={20} color="#fff" />
             <ThemedText style={styles.ctaText}>
-              Estudar {dueCount} {dueCount === 1 ? 'card' : 'cards'}
+              Estudar {sessionCount} {sessionCount === 1 ? 'card' : 'cards'}
             </ThemedText>
           </Pressable>
         ) : (
