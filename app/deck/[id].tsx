@@ -160,25 +160,29 @@ export default function DeckScreen() {
           </View>
         </View>
 
-        <View style={styles.titleBlock}>
+        {/* Compact hero row — emoji | title+subtitle | play. Apple Music /
+            Spotify compact style: horizontal instead of stacked, so the list
+            of cards starts higher on the screen. */}
+        <View style={styles.hero}>
           <Pressable onPress={() => setPickerOpen(true)} hitSlop={8}>
             <ThemedText style={styles.deckEmoji}>{deck?.emoji ?? '📚'}</ThemedText>
           </Pressable>
-          <ThemedText style={styles.title}>{deck?.name ?? 'Deck'}</ThemedText>
-          <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {all.length} cards · {dueCount} due
-          </ThemedText>
+          <View style={styles.heroText}>
+            <ThemedText style={styles.title} numberOfLines={1}>{deck?.name ?? 'Deck'}</ThemedText>
+            <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+              {all.length} cards · {dueCount} due
+            </ThemedText>
+          </View>
+          {/* Primary CTA — round icon-only play button, Spotify style. Always
+              visible: with due cards it starts a normal session; with none,
+              startStudy() falls back to practice mode. */}
+          <Pressable
+            onPress={startStudy}
+            hitSlop={12}
+            style={({ pressed }) => [styles.cta, { backgroundColor: accent, opacity: pressed ? 0.85 : 1 }]}>
+            <IconSymbol name="play.fill" size={20} color="#fff" />
+          </Pressable>
         </View>
-
-        {/* Primary CTA — round icon-only play button, Spotify style. Always
-            visible: with due cards it starts a normal session; with none,
-            startStudy() falls back to practice mode. */}
-        <Pressable
-          onPress={startStudy}
-          hitSlop={12}
-          style={({ pressed }) => [styles.cta, { backgroundColor: accent, opacity: pressed ? 0.85 : 1 }]}>
-          <IconSymbol name="play.fill" size={24} color="#fff" />
-        </Pressable>
 
         <View style={styles.sectionHeader}>
           <ThemedText style={[styles.sectionLabel, { color: colors.textSecondary }]}>
@@ -316,15 +320,21 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: Spacing.one },
   headerRight: { flexDirection: 'row', gap: Spacing.two },
   iconButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  titleBlock: { paddingTop: Spacing.three, paddingBottom: Spacing.four, gap: Spacing.one },
-  deckEmoji: { fontSize: 44, lineHeight: 54 },
-  title: { fontSize: 30, fontWeight: '700', lineHeight: 36 },
-  subtitle: { fontSize: 14 },
+  hero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.three,
+  },
+  heroText: { flex: 1, gap: 2, minWidth: 0 },
+  deckEmoji: { fontSize: 40, lineHeight: 48 },
+  title: { fontSize: 24, fontWeight: '700', lineHeight: 28 },
+  subtitle: { fontSize: 13 },
   cta: {
-    alignSelf: 'flex-start',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     // Subtle shadow to give the Spotify-style play button its pop.
