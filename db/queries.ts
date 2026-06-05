@@ -36,16 +36,28 @@ export function cardsInDeck(deckId: number) {
   return db.select().from(cards).where(eq(cards.deckId, deckId)).orderBy(desc(cards.createdAt));
 }
 
-// The study queue: due cards, shuffled, capped at 21 per session so studying
-// never gets tiring. FSRS still decides WHICH cards are due and WHEN they return;
-// the within-session order is random. (Practice mode below is uncapped.)
-export function getStudyQueue(deckId: number): Card[] {
-  return shuffle(getDueCards(deckId)).slice(0, DAILY_GOAL);
+// Within-session ordering. Mirrors the sort icons on the deck screen so the
+// queue at play time matches what the user is seeing in the list.
+export type StudyOrder = 'shuffle' | 'recent';
+
+function applyOrder<T extends { createdAt: Date }>(arr: T[], order: StudyOrder): T[] {
+  if (order === 'recent') {
+    return [...arr].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  return shuffle(arr);
 }
 
-// Practice mode: every card in the deck (even not-due), shuffled. Re-review freely.
-export function getAllCardsForPractice(deckId: number): Card[] {
-  return shuffle(db.select().from(cards).where(eq(cards.deckId, deckId)).all());
+// The study queue: due cards, capped at 21 per session so studying never gets
+// tiring. FSRS still decides WHICH cards are due and WHEN they return; the
+// within-session order is the user's choice (shuffle is the default).
+// Practice mode below is uncapped.
+export function getStudyQueue(deckId: number, order: StudyOrder = 'shuffle'): Card[] {
+  return applyOrder(getDueCards(deckId), order).slice(0, DAILY_GOAL);
+}
+
+// Practice mode: every card in the deck (even not-due), in the chosen order.
+export function getAllCardsForPractice(deckId: number, order: StudyOrder = 'shuffle'): Card[] {
+  return applyOrder(db.select().from(cards).where(eq(cards.deckId, deckId)).all(), order);
 }
 
 // --- Gamification (derived from review history) -----------------------------

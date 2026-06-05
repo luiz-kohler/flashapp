@@ -11,7 +11,7 @@ import { RichText } from '@/components/rich-text';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, Spacing } from '@/constants/theme';
-import { getAllCardsForPractice, getDeck, getReviewsToday, getStudyQueue, recordReview } from '@/db/queries';
+import { getAllCardsForPractice, getDeck, getReviewsToday, getStudyQueue, recordReview, type StudyOrder } from '@/db/queries';
 import type { Card } from '@/db/schema';
 import { Rating, type ReviewGrade } from '@/lib/fsrs';
 import { DAILY_GOAL, xpForRating } from '@/lib/progress';
@@ -24,14 +24,17 @@ const RATINGS: { grade: ReviewGrade; label: string; color: string; rgb: string }
 ];
 
 export default function StudyScreen() {
-  const { deckId, practice } = useLocalSearchParams<{ deckId: string; practice?: string }>();
+  const { deckId, practice, sort } = useLocalSearchParams<{ deckId: string; practice?: string; sort?: string }>();
   const did = Number(deckId);
   const isPractice = practice === '1';
+  // Order chosen on the deck screen (shuffle/recent). Falls back to shuffle —
+  // the historical default — for any unknown value so old links keep working.
+  const order: StudyOrder = sort === 'recent' ? 'recent' : 'shuffle';
   const deck = useMemo(() => getDeck(did), [did]);
   const accent = deck?.color ?? Colors.light.tint;
 
   const [queue, setQueue] = useState<Card[]>(() =>
-    isPractice ? getAllCardsForPractice(did) : getStudyQueue(did)
+    isPractice ? getAllCardsForPractice(did, order) : getStudyQueue(did, order)
   );
   const [pos, setPos] = useState(0);
   const [revealed, setRevealed] = useState(false);

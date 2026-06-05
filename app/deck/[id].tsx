@@ -99,7 +99,12 @@ export default function DeckScreen() {
     // No due cards → fall back to practice mode (review all without affecting FSRS),
     // so the play button always works, like Spotify's play.
     const practice = dueCount === 0 && all.length > 0 ? '1' : undefined;
-    router.push({ pathname: '/study/[deckId]', params: { deckId: String(deckId), practice } });
+    // Mirror the list's sort choice into the session, so play matches what the
+    // user sees above (shuffle = random; recent = newest first by creation).
+    router.push({
+      pathname: '/study/[deckId]',
+      params: { deckId: String(deckId), practice, sort: sortMode },
+    });
   }
 
   function openImport() {
