@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Animated, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { RichText } from '@/components/rich-text';
@@ -20,90 +20,71 @@ import { DAILY_GOAL, xpForRating } from '@/lib/progress';
 // the card and counts as a miss) and thumbs-up to Good (the standard correct
 // answer in FSRS). Hard and Easy still exist in the engine but aren't exposed
 // — the simplified interaction mirrors iOS-style "like / don't like" controls.
-const THUMBS_DOWN_RGB = '255,69,58';
-const THUMBS_UP_RGB = '50,215,75';
-const THUMBS_DOWN_COLOR = '#FF453A';
-const THUMBS_UP_COLOR = '#32D74B';
+// iOS system reds/greens (UIColor.systemRed / .systemGreen, light variant).
+const THUMBS_DOWN_COLOR = '#FF3B30';
+const THUMBS_UP_COLOR = '#34C759';
 
 function RatingButton({
-  rgb,
-  color,
+  bg,
   icon,
   onPress,
 }: {
-  rgb: string;
-  color: string;
+  bg: string;
   icon: 'hand.thumbsup.fill' | 'hand.thumbsdown.fill';
   onPress: () => void;
 }) {
-  // Two animated layers per button:
-  //   - `scale` drives the press-down/spring-back of the button itself
-  //   - `haloScale`/`haloOpacity` drive a one-shot ring that expands and fades
-  //     outward when the user taps, giving the iOS-style "ripple" feedback.
+  // RN port of Framer Motion's whileTap={{ scale: 0.95 }} with
+  // spring(stiffness: 400, damping: 17, mass: 1). That damping ratio is the
+  // physics equivalent of cubic-bezier(0.34, 1.56, 0.64, 1): the scale
+  // overshoots ~1.02 on release before settling. Animated.spring runs this on
+  // the native side when useNativeDriver is true.
   const scale = useRef(new Animated.Value(1)).current;
-  const haloScale = useRef(new Animated.Value(0.8)).current;
-  const haloOpacity = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useRef(false);
 
-  function handlePressIn() {
+  useEffect(() => {
+    // Respect the iOS system "Reduce Motion" toggle (Settings → Accessibility).
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => {
+      reduceMotion.current = v;
+    });
+  }, []);
+
+  function springTo(toValue: number) {
+    if (reduceMotion.current) {
+      scale.setValue(toValue);
+      return;
+    }
     Animated.spring(scale, {
-      toValue: 0.9,
+      toValue,
       useNativeDriver: true,
-      speed: 50,
-      bounciness: 0,
+      stiffness: 400,
+      damping: 17,
+      mass: 1,
     }).start();
-  }
-
-  function handlePressOut() {
-    // Tension/friction tuned to overshoot 1.0 slightly — feels alive, not stiff.
-    Animated.spring(scale, {
-      toValue: 1,
-      useNativeDriver: true,
-      friction: 3,
-      tension: 200,
-    }).start();
-  }
-
-  function handlePress() {
-    haloScale.setValue(0.85);
-    haloOpacity.setValue(0.55);
-    Animated.parallel([
-      Animated.timing(haloScale, { toValue: 1.55, duration: 380, useNativeDriver: true }),
-      Animated.timing(haloOpacity, { toValue: 0, duration: 380, useNativeDriver: true }),
-    ]).start();
-    // Short delay so the press animation is visible before the next card replaces
-    // these buttons. 130ms is long enough to register the bounce, short enough
-    // to still feel snappy during rapid review sessions.
-    setTimeout(onPress, 130);
   }
 
   return (
     <Pressable
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      onPress={handlePress}
+      onPressIn={() => springTo(0.95)}
+      onPressOut={() => springTo(1)}
+      onHoverIn={() => springTo(1.03)}
+      onHoverOut={() => springTo(1)}
+      onPress={onPress}
       hitSlop={12}
       style={styles.ratingWrap}>
       <Animated.View
-        pointerEvents="none"
         style={[
-          styles.ratingHalo,
-          {
-            backgroundColor: `rgba(${rgb},1)`,
-            opacity: haloOpacity,
-            transform: [{ scale: haloScale }],
-          },
-        ]}
-      />
-      <Animated.View
-        style={[
-          styles.ratingBtn,
-          {
-            backgroundColor: `rgba(${rgb},0.22)`,
-            borderColor: `rgba(${rgb},0.55)`,
-            transform: [{ scale }],
-          },
+          styles.ratingShadow,
+          { shadowColor: bg, transform: [{ scale }] },
         ]}>
-        <IconSymbol name={icon} size={38} color={color} />
+        <View style={[styles.ratingBtn, { backgroundColor: bg }]}>
+          {/* Soft top sheen — convex highlight that fades into the button color. */}
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0)']}
+            style={styles.ratingHighlight}
+          />
+          <IconSymbol name={icon} size={30} color="#fff" />
+        </View>
       </Animated.View>
     </Pressable>
   );
@@ -259,14 +240,12 @@ export default function StudyScreen() {
             ) : (
               <View style={styles.ratings}>
                 <RatingButton
-                  rgb={THUMBS_DOWN_RGB}
-                  color={THUMBS_DOWN_COLOR}
+                  bg={THUMBS_DOWN_COLOR}
                   icon="hand.thumbsdown.fill"
                   onPress={() => rate(Rating.Again)}
                 />
                 <RatingButton
-                  rgb={THUMBS_UP_RGB}
-                  color={THUMBS_UP_COLOR}
+                  bg={THUMBS_UP_COLOR}
                   icon="hand.thumbsup.fill"
                   onPress={() => rate(Rating.Good)}
                 />
@@ -342,29 +321,36 @@ const styles = StyleSheet.create({
   ratings: {
     flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'center',
-    gap: Spacing.five,
+    alignItems: 'stretch',
+    gap: Spacing.three,
     paddingVertical: Spacing.two,
   },
   ratingWrap: {
-    width: 88,
-    height: 88,
-    alignItems: 'center',
-    justifyContent: 'center',
+    flex: 1,
+    maxWidth: 180,
+  },
+  // Outer view carries the iOS drop shadow tinted to the button color.
+  // overflow:hidden lives on the inner view so the shadow isn't clipped.
+  ratingShadow: {
+    borderRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
   },
   ratingBtn: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    height: 64,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+    elevation: 8,
   },
-  ratingHalo: {
+  ratingHighlight: {
     position: 'absolute',
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    left: 0,
+    right: 0,
+    top: 0,
+    height: '55%',
   },
 
   doneWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two },
