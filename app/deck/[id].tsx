@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
+import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GlassSurface } from '@/components/glass-surface';
@@ -164,8 +165,9 @@ export default function DeckScreen() {
           renderItem={({ item }) => {
             const status = statusFor(item.state, item.due.getTime());
             return (
-              <SwipeToDelete onConfirm={() => { deleteCard(item.id); refresh(); }}>
-                <GlassSurface radius={16} style={styles.cardRow}>
+              <Animated.View layout={LinearTransition} exiting={FadeOut.duration(220)}>
+                <SwipeToDelete onConfirm={() => { deleteCard(item.id); refresh(); }}>
+                  <GlassSurface radius={16} style={styles.cardRow}>
                 <View style={styles.cardText}>
                   <ThemedText style={styles.cardFront} numberOfLines={1}>
                     {item.front}
@@ -182,7 +184,8 @@ export default function DeckScreen() {
                   </ThemedText>
                 </View>
                 </GlassSurface>
-              </SwipeToDelete>
+                </SwipeToDelete>
+              </Animated.View>
             );
           }}
         />

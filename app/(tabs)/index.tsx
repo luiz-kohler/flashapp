@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GlassSurface } from '@/components/glass-surface';
@@ -62,6 +63,7 @@ export default function DecksScreen() {
             </ThemedText>
           }
           renderItem={({ item }) => (
+            <Animated.View layout={LinearTransition} exiting={FadeOut.duration(220)}>
             <SwipeToDelete radius={20} onConfirm={() => { deleteDeck(item.id); refresh(); }}>
             <Pressable
               onPress={() => {
@@ -90,6 +92,7 @@ export default function DecksScreen() {
               </GlassSurface>
             </Pressable>
             </SwipeToDelete>
+            </Animated.View>
           )}
         />
       </SafeAreaView>
