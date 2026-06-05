@@ -119,11 +119,17 @@ function RatingButton({
 export default function StudyScreen() {
   const { deckId, sort, limit } = useLocalSearchParams<{ deckId: string; sort?: string; limit?: string }>();
   const did = Number(deckId);
-  // Order chosen on the deck screen (shuffle/recent/oldest). Falls back to
-  // shuffle — the historical default — for any unknown value so old links keep
-  // working.
+  // Order chosen on the deck screen (shuffle/recent/oldest/recommended).
+  // Falls back to shuffle — the historical default — for any unknown value so
+  // old links keep working.
   const order: StudyOrder =
-    sort === 'recent' ? 'recent' : sort === 'oldest' ? 'oldest' : 'shuffle';
+    sort === 'recent'
+      ? 'recent'
+      : sort === 'oldest'
+        ? 'oldest'
+        : sort === 'recommended'
+          ? 'recommended'
+          : 'shuffle';
   // Session size cap from the deck screen. 'all' uncaps; numeric caps the set
   // (due-first, filled from non-due). Default 20 mirrors the deck screen.
   const parsedLimit: SessionLimit =

@@ -30,6 +30,12 @@ import {
 } from '../lib/fsrs';
 import { computeProgress, DAILY_GOAL, localDay, weeklyCounts, xpForRating } from '../lib/progress';
 import { parseCards } from '../lib/parse-cards';
+import {
+  interleaveNews,
+  priorityScore,
+  recommendedOrder,
+  type CardStats,
+} from '../lib/recommend';
 
 const sqlite = new Database(':memory:');
 sqlite.exec(SCHEMA_DDL);
@@ -56,7 +62,7 @@ function getDueCards(deckId: number, now: Date): Card[] {
 }
 // Mirrors db/queries.ts#getStudySession. The real one reads `Date.now()`
 // internally; here we accept `now` to keep simulations deterministic.
-type StudyOrder = 'shuffle' | 'recent' | 'oldest';
+type StudyOrder = 'shuffle' | 'recent' | 'oldest' | 'recommended';
 type SessionLimit = number | 'all';
 function shuffleArr<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -71,6 +77,25 @@ function applyOrder<T extends { createdAt: Date }>(arr: T[], order: StudyOrder):
   if (order === 'oldest') return [...arr].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   return shuffleArr(arr);
 }
+// Mirrors getCardStatsForDeck in db/queries.ts (same Drizzle, same window).
+function getCardStatsForDeck(deckId: number, now: Date): Map<number, CardStats> {
+  const sinceMs = now.getTime() - 14 * DAY;
+  const rows = db
+    .select({ cardId: reviewLogs.cardId, rating: reviewLogs.rating, review: reviewLogs.review })
+    .from(reviewLogs)
+    .innerJoin(cards, eq(cards.id, reviewLogs.cardId))
+    .where(eq(cards.deckId, deckId))
+    .all();
+  const map = new Map<number, CardStats>();
+  for (const r of rows) {
+    if (r.rating !== Rating.Again) continue;
+    const entry = map.get(r.cardId) ?? { recentLapseCount: 0, totalLapses: 0 };
+    entry.totalLapses++;
+    if (r.review.getTime() >= sinceMs) entry.recentLapseCount++;
+    map.set(r.cardId, entry);
+  }
+  return map;
+}
 function getStudySession(deckId: number, order: StudyOrder, limit: SessionLimit, now: Date): Card[] {
   const all = db.select().from(cards).where(eq(cards.deckId, deckId)).all();
   const byDueAsc = (a: Card, b: Card) => a.due.getTime() - b.due.getTime();
@@ -78,6 +103,9 @@ function getStudySession(deckId: number, order: StudyOrder, limit: SessionLimit,
   const notDue = all.filter((c) => c.due.getTime() > now.getTime()).sort(byDueAsc);
   const prioritized = [...due, ...notDue];
   const picked = limit === 'all' ? prioritized : prioritized.slice(0, limit);
+  if (order === 'recommended') {
+    return recommendedOrder(picked, getCardStatsForDeck(deckId, now), now);
+  }
   return applyOrder(picked, order);
 }
 function review(card: Card, grade: ReviewGrade, now: Date): Card {
@@ -287,6 +315,122 @@ console.log('\nS8 — Weekly chart (since the beginning)');
   check('Current week sums to 10', wk[7].count === 10, `(${wk[7].count})`);
   check('Two weeks ago sums to 5', wk[6].count === 5, `(${wk[6].count})`);
   check('Weekly total = 15', wk.reduce((s, w) => s + w.count, 0) === 15);
+}
+
+// === S9: recommended order — score signals, warmup, interleaving ===========
+console.log('\nS9 — Recommended order (FSRS + lapse history + warmup + interleaving)');
+{
+  // Helper: build a stats map from sparse {cardId, stats} entries.
+  const statsMap = (entries: { id: number; recent: number; total: number }[]) =>
+    new Map<number, CardStats>(
+      entries.map((e) => [e.id, { recentLapseCount: e.recent, totalLapses: e.total }])
+    );
+
+  // --- Score signals ------------------------------------------------------
+  // Two cards drilled to identical FSRS state, but one has a recent-lapse
+  // history. The lapse-heavy card should score higher (= more urgent).
+  {
+    const d = createDeck('Score');
+    let a = createCard(d.id, 'a', '.', t0);
+    let b = createCard(d.id, 'b', '.', t0);
+    a = review(a, Rating.Good, t0);
+    b = review(b, Rating.Good, t0);
+    const now = new Date(t0.getTime() + 2 * DAY);
+    const stats = statsMap([
+      { id: a.id, recent: 3, total: 3 },
+      { id: b.id, recent: 0, total: 0 },
+    ]);
+    const sa = priorityScore(a, stats.get(a.id)!, now);
+    const sb = priorityScore(b, stats.get(b.id)!, now);
+    check('Recent lapses raise priority above an identical clean card', sa > sb, `(a=${sa.toFixed(3)} b=${sb.toFixed(3)})`);
+  }
+
+  // --- Warmup swap --------------------------------------------------------
+  // Build three review cards with very different difficulties so one stands
+  // out as the score outlier. The recommender should NOT open the session
+  // with the absolute hardest one — that's the warmup-effect principle.
+  {
+    const d = createDeck('Warmup');
+    const cards3 = [
+      createCard(d.id, 'leech', '.', t0),
+      createCard(d.id, 'mid', '.', t0),
+      createCard(d.id, 'easy', '.', t0),
+    ];
+    // Bring all three out of New state with one Good.
+    const reviewed = cards3.map((c) => review(c, Rating.Good, t0));
+    const now = new Date(t0.getTime() + 5 * DAY);
+    // Push the "leech" way up via huge recent-lapse count, mid medium, easy zero.
+    const stats = statsMap([
+      { id: reviewed[0].id, recent: 5, total: 10 },
+      { id: reviewed[1].id, recent: 1, total: 1 },
+      { id: reviewed[2].id, recent: 0, total: 0 },
+    ]);
+    const ordered = recommendedOrder(reviewed, stats, now);
+    // Warmup: when the top is an outlier, position 0 must NOT be the leech —
+    // it should land at position 1 (the second slot).
+    check('Warmup swap: outlier-hard card moves out of first slot', ordered[0].front !== 'leech', `(first=${ordered[0].front})`);
+    check('Outlier-hard card lands in the second slot', ordered[1].front === 'leech', `(second=${ordered[1].front})`);
+  }
+
+  // --- Interleaving new cards ---------------------------------------------
+  // Six reviews + two new = new cards spread roughly evenly through the
+  // session (NOT batched at the start or the end).
+  {
+    const d = createDeck('Inter');
+    const reviews: Card[] = [];
+    for (let i = 0; i < 6; i++) {
+      let c = createCard(d.id, `r${i}`, '.', t0);
+      c = review(c, Rating.Good, t0);
+      reviews.push(c);
+    }
+    const news: Card[] = [];
+    for (let i = 0; i < 2; i++) news.push(createCard(d.id, `n${i}`, '.', t0));
+    const woven = interleaveNews(reviews, news);
+    check('Interleave preserves total length', woven.length === reviews.length + news.length);
+    // The first card should be a review (new cards aren't dumped at the front)
+    // and the new cards should sit somewhere in the middle, not glued to one end.
+    check('Interleave: first card is a review (warmup with known material)', woven[0].state !== State.New);
+    const newPositions = woven
+      .map((c, i) => (c.state === State.New ? i : -1))
+      .filter((i) => i !== -1);
+    check('Interleave: new cards are not back-to-back', newPositions[1] - newPositions[0] > 1, `(positions=${newPositions})`);
+    check('Interleave: new cards are not both at the tail', newPositions[0] < reviews.length, `(positions=${newPositions})`);
+  }
+
+  // --- End-to-end via getStudySession with order='recommended' ------------
+  // Three review cards (always-easy, always-hard, mixed) + a brand-new card.
+  // The "mixed" card absorbs the warmup slot so we can cleanly test that the
+  // hard, lapse-heavy card ranks higher than the always-easy one in the
+  // remaining slots — i.e. the ordering does react to past answers.
+  {
+    const d = createDeck('E2E');
+    let easy = createCard(d.id, 'easy', '.', t0);
+    let hard = createCard(d.id, 'hard', '.', t0);
+    let mixed = createCard(d.id, 'mixed', '.', t0);
+    createCard(d.id, 'new', '.', t0); // brand-new, never reviewed
+    for (let day = 0; day < 5; day++) {
+      const now = new Date(t0.getTime() + day * DAY);
+      easy = review(easy, Rating.Good, now);
+      hard = review(hard, Rating.Again, now);
+      // Mixed: half right, half wrong — sits between easy and hard in score.
+      mixed = review(mixed, day % 2 === 0 ? Rating.Good : Rating.Again, now);
+    }
+    const tFinal = new Date(t0.getTime() + 5 * DAY);
+    const q = getStudySession(d.id, 'recommended', 'all', tFinal);
+    check('Recommended session includes all four cards', q.length === 4, `(${q.length})`);
+    const positions = Object.fromEntries(q.map((c, i) => [c.front, i]));
+    check(
+      'Recommended: "hard" (always missed) sorts before "easy" (always passed)',
+      positions['hard'] < positions['easy'],
+      `(${JSON.stringify(positions)})`
+    );
+    check('Recommended: brand-new card is present (interleaved)', positions['new'] !== undefined);
+    check(
+      'Recommended: a known card opens the session (not the new one)',
+      q[0].state !== State.New,
+      `(first=${q[0].front})`
+    );
+  }
 }
 
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);

@@ -1,8 +1,9 @@
 import { and, desc, eq, lte, sql } from 'drizzle-orm';
 
-import { initialCardState, reviewCard, type ReviewGrade } from '@/lib/fsrs';
+import { initialCardState, Rating, reviewCard, type ReviewGrade } from '@/lib/fsrs';
 import { randomEmoji } from '@/lib/emojis';
 import { xpForRating } from '@/lib/progress';
+import { recommendedOrder, RECENT_WINDOW_DAYS, type CardStats } from '@/lib/recommend';
 import { db } from './client';
 import { cards, decks, reviewLogs, type Card } from './schema';
 
@@ -38,8 +39,39 @@ export function cardsInDeck(deckId: number) {
 
 // Within-session ordering. Mirrors the sort icons on the deck screen so the
 // queue at play time matches what the user is seeing in the list. 'recent' =
-// newest first; 'oldest' = oldest first (same icon, flipped on the UI).
-export type StudyOrder = 'shuffle' | 'recent' | 'oldest';
+// newest first; 'oldest' = oldest first (same icon, flipped on the UI);
+// 'recommended' = science-backed ordering (see lib/recommend.ts) that uses
+// FSRS retrievability + the user's lapse history to pick what to study now.
+export type StudyOrder = 'shuffle' | 'recent' | 'oldest' | 'recommended';
+
+// Per-card review-history stats for the whole deck, in one query. Recent
+// lapses use a 14-day window (see RECENT_WINDOW_DAYS) — long enough to catch
+// "still struggling" cards, short enough that a card you've since mastered
+// doesn't keep getting penalized forever. Returns a Map for O(1) lookup by
+// the recommender; cards with no logs simply aren't in the map and default
+// to zero in the consumer.
+export function getCardStatsForDeck(deckId: number): Map<number, CardStats> {
+  const sinceMs = Date.now() - RECENT_WINDOW_DAYS * 86_400_000;
+  const rows = db
+    .select({
+      cardId: reviewLogs.cardId,
+      rating: reviewLogs.rating,
+      review: reviewLogs.review,
+    })
+    .from(reviewLogs)
+    .innerJoin(cards, eq(cards.id, reviewLogs.cardId))
+    .where(eq(cards.deckId, deckId))
+    .all();
+  const map = new Map<number, CardStats>();
+  for (const r of rows) {
+    if (r.rating !== Rating.Again) continue;
+    const entry = map.get(r.cardId) ?? { recentLapseCount: 0, totalLapses: 0 };
+    entry.totalLapses++;
+    if (r.review.getTime() >= sinceMs) entry.recentLapseCount++;
+    map.set(r.cardId, entry);
+  }
+  return map;
+}
 
 function applyOrder<T extends { createdAt: Date }>(arr: T[], order: StudyOrder): T[] {
   if (order === 'recent') {
@@ -48,6 +80,9 @@ function applyOrder<T extends { createdAt: Date }>(arr: T[], order: StudyOrder):
   if (order === 'oldest') {
     return [...arr].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
+  // 'recommended' is handled at the getStudySession level (it needs per-card
+  // history stats that aren't available from createdAt alone). Anything else
+  // falls back to shuffle — the historical default.
   return shuffle(arr);
 }
 
@@ -78,6 +113,9 @@ export function getStudySession(
   const notDue = all.filter((c) => c.due.getTime() > now).sort(byDueAsc);
   const prioritized = [...due, ...notDue];
   const picked = limit === 'all' ? prioritized : prioritized.slice(0, limit);
+  if (order === 'recommended') {
+    return recommendedOrder(picked, getCardStatsForDeck(deckId), new Date(now));
+  }
   return applyOrder(picked, order);
 }
 

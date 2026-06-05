@@ -28,6 +28,7 @@ const MAPPING = {
   'checkmark.circle.fill': 'check-circle',
   checkmark: 'check',
   sparkles: 'auto-awesome',
+  'wand.and.stars': 'auto-fix-high',
   xmark: 'close',
   shuffle: 'shuffle',
   'clock.arrow.circlepath': 'history',

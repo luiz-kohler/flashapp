@@ -12,9 +12,10 @@ import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, Spacing } from '@/constants/theme';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
-import { cardsInDeck, deleteCard, getDeck, type SessionLimit } from '@/db/queries';
+import { cardsInDeck, deleteCard, getCardStatsForDeck, getDeck, type SessionLimit } from '@/db/queries';
 import type { Card } from '@/db/schema';
 import { State } from '@/lib/fsrs';
+import { recommendedOrder } from '@/lib/recommend';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function DeckScreen() {
@@ -30,9 +31,10 @@ export default function DeckScreen() {
   const [previewCard, setPreviewCard] = useState<Card | null>(null);
   // Sort mode for the "All cards" list. 'recent' = newest first (default, like
   // Spotify's liked-songs list), 'oldest' = oldest first (tap the clock again
-  // to flip direction), 'shuffle' = random order. shuffleSeed lets the user
-  // re-shuffle by tapping the shuffle icon again.
-  const [sortMode, setSortMode] = useState<'recent' | 'oldest' | 'shuffle'>('recent');
+  // to flip direction), 'shuffle' = random order, 'recommended' = science-backed
+  // order based on FSRS retrievability + the user's lapse history (see
+  // lib/recommend.ts). shuffleSeed lets the user re-shuffle by tapping again.
+  const [sortMode, setSortMode] = useState<'recent' | 'oldest' | 'shuffle' | 'recommended'>('recent');
   const [shuffleSeed, setShuffleSeed] = useState(0);
   // Session-size cap chosen by the user. Default 20 — close to DAILY_GOAL (21)
   // but a rounder, friendlier number for the menu. The play button passes this
@@ -55,12 +57,17 @@ export default function DeckScreen() {
   // Sort the visible list according to sortMode. In 'shuffle' we use a
   // Fisher–Yates seeded by shuffleSeed so the order stays stable between
   // re-renders (until the user taps the icon again, which changes the seed).
+  // In 'recommended' we load per-card review-history stats once and feed them
+  // to recommendedOrder so the list mirrors what `play` will show.
   const sortedCards = useMemo(() => {
     if (sortMode === 'recent') {
       return [...cards].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     }
     if (sortMode === 'oldest') {
       return [...cards].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    }
+    if (sortMode === 'recommended') {
+      return recommendedOrder(cards, getCardStatsForDeck(deckId), new Date());
     }
     const arr = [...cards];
     let s = shuffleSeed || 1;
@@ -73,7 +80,7 @@ export default function DeckScreen() {
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
     return arr;
-  }, [cards, sortMode, shuffleSeed]);
+  }, [cards, sortMode, shuffleSeed, deckId]);
 
   function toggleShuffle() {
     Haptics.selectionAsync();
@@ -85,11 +92,17 @@ export default function DeckScreen() {
     }
   }
   // Tapping the clock toggles direction (newest-first ↔ oldest-first), like
-  // most lists with a single sort axis. Coming from shuffle, default to the
-  // newest-first direction first.
+  // most lists with a single sort axis. Coming from shuffle/recommended,
+  // default to the newest-first direction first.
   function toggleRecent() {
     Haptics.selectionAsync();
     setSortMode((m) => (m === 'recent' ? 'oldest' : 'recent'));
+  }
+  // The science-backed sort: FSRS retrievability + lapse history + warmup +
+  // new-card interleaving. See lib/recommend.ts for the methodology.
+  function toggleRecommended() {
+    Haptics.selectionAsync();
+    setSortMode('recommended');
   }
 
   function handleAddCard() {
@@ -228,8 +241,17 @@ export default function DeckScreen() {
           {/* Sort: icon-only, Spotify style (the active one lights up in the
               accent color). The clock toggles direction — in 'oldest' mode we
               mirror the icon horizontally so the curved arrow points the
-              other way, signaling "going forward in time" instead of back. */}
+              other way, signaling "going forward in time" instead of back.
+              The wand is the science-backed "recommended" order (FSRS +
+              your answer history — see lib/recommend.ts). */}
           <View style={styles.sortRow}>
+            <Pressable onPress={toggleRecommended} hitSlop={10} style={styles.sortBtn}>
+              <IconSymbol
+                name="wand.and.stars"
+                size={18}
+                color={sortMode === 'recommended' ? accent : colors.textSecondary}
+              />
+            </Pressable>
             <Pressable onPress={toggleRecent} hitSlop={10} style={styles.sortBtn}>
               <IconSymbol
                 name="clock.arrow.circlepath"
