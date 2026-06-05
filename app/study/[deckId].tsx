@@ -20,7 +20,7 @@ import { RichText } from '@/components/rich-text';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, Spacing } from '@/constants/theme';
-import { getAllCardsForPractice, getDeck, getReviewsToday, getStudyQueue, recordReview, type StudyOrder } from '@/db/queries';
+import { getDeck, getReviewsToday, getStudySession, recordReview, type SessionLimit, type StudyOrder } from '@/db/queries';
 import type { Card } from '@/db/schema';
 import { Rating, type ReviewGrade } from '@/lib/fsrs';
 import { DAILY_GOAL, xpForRating } from '@/lib/progress';
@@ -117,20 +117,21 @@ function RatingButton({
 }
 
 export default function StudyScreen() {
-  const { deckId, practice, sort } = useLocalSearchParams<{ deckId: string; practice?: string; sort?: string }>();
+  const { deckId, sort, limit } = useLocalSearchParams<{ deckId: string; sort?: string; limit?: string }>();
   const did = Number(deckId);
-  const isPractice = practice === '1';
   // Order chosen on the deck screen (shuffle/recent/oldest). Falls back to
   // shuffle — the historical default — for any unknown value so old links keep
   // working.
   const order: StudyOrder =
     sort === 'recent' ? 'recent' : sort === 'oldest' ? 'oldest' : 'shuffle';
+  // Session size cap from the deck screen. 'all' uncaps; numeric caps the set
+  // (due-first, filled from non-due). Default 20 mirrors the deck screen.
+  const parsedLimit: SessionLimit =
+    limit === 'all' ? 'all' : Number.isFinite(Number(limit)) && Number(limit) > 0 ? Number(limit) : 20;
   const deck = useMemo(() => getDeck(did), [did]);
   const accent = deck?.color ?? Colors.light.tint;
 
-  const [queue, setQueue] = useState<Card[]>(() =>
-    isPractice ? getAllCardsForPractice(did, order) : getStudyQueue(did, order)
-  );
+  const [queue, setQueue] = useState<Card[]>(() => getStudySession(did, order, parsedLimit));
   const [pos, setPos] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [reviewed, setReviewed] = useState(0);

@@ -54,12 +54,31 @@ function getDueCards(deckId: number, now: Date): Card[] {
     .orderBy(cards.due)
     .all();
 }
-// Real getStudyQueue shuffles then caps at 21; order doesn't matter for tests.
-function getStudyQueue(deckId: number, now: Date): Card[] {
-  return getDueCards(deckId, now).slice(0, DAILY_GOAL);
+// Mirrors db/queries.ts#getStudySession. The real one reads `Date.now()`
+// internally; here we accept `now` to keep simulations deterministic.
+type StudyOrder = 'shuffle' | 'recent' | 'oldest';
+type SessionLimit = number | 'all';
+function shuffleArr<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
-function getAllCardsForPractice(deckId: number, now: Date): Card[] {
-  return db.select().from(cards).where(eq(cards.deckId, deckId)).all();
+function applyOrder<T extends { createdAt: Date }>(arr: T[], order: StudyOrder): T[] {
+  if (order === 'recent') return [...arr].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  if (order === 'oldest') return [...arr].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  return shuffleArr(arr);
+}
+function getStudySession(deckId: number, order: StudyOrder, limit: SessionLimit, now: Date): Card[] {
+  const all = db.select().from(cards).where(eq(cards.deckId, deckId)).all();
+  const byDueAsc = (a: Card, b: Card) => a.due.getTime() - b.due.getTime();
+  const due = all.filter((c) => c.due.getTime() <= now.getTime()).sort(byDueAsc);
+  const notDue = all.filter((c) => c.due.getTime() > now.getTime()).sort(byDueAsc);
+  const prioritized = [...due, ...notDue];
+  const picked = limit === 'all' ? prioritized : prioritized.slice(0, limit);
+  return applyOrder(picked, order);
 }
 function review(card: Card, grade: ReviewGrade, now: Date): Card {
   const outcome = reviewCard(card, grade, now);
@@ -86,17 +105,34 @@ function check(name: string, cond: boolean, detail = '') {
 const DAY = 86_400_000;
 const t0 = new Date('2026-06-04T09:00:00Z');
 
-// === S1: no hard cap — all due cards; practice includes not-due =============
-console.log('\nS1 — Session capped at 21 + practice (review all, no cap)');
+// === S1: session size + due-first prioritization ===========================
+console.log('\nS1 — Session size selector (5/10/15/20/all) with due-first fill');
 {
   const d = createDeck('Cap');
   for (let i = 0; i < 30; i++) createCard(d.id, `q${i}`, `a${i}`, t0);
-  check('30 due → session caps at 21', getStudyQueue(d.id, t0).length === 21, `(got ${getStudyQueue(d.id, t0).length})`);
+  check('limit=5 with 30 due → 5 cards', getStudySession(d.id, 'shuffle', 5, t0).length === 5);
+  check('limit=20 with 30 due → 20 cards', getStudySession(d.id, 'shuffle', 20, t0).length === 20);
+  check('limit="all" with 30 due → all 30', getStudySession(d.id, 'shuffle', 'all', t0).length === 30);
   // Review one as Good so it's no longer due "now".
   review(getDueCards(d.id, t0)[0], Rating.Good, t0);
-  check('After reviewing 1, due (getDueCards) = 29', getDueCards(d.id, t0).length === 29, `(got ${getDueCards(d.id, t0).length})`);
-  check('Practice (review all) is uncapped (30)', getAllCardsForPractice(d.id, t0).length === 30);
+  check('After reviewing 1, getDueCards = 29', getDueCards(d.id, t0).length === 29, `(got ${getDueCards(d.id, t0).length})`);
+  check('limit="all" still returns all 30 (29 due + 1 not-due)', getStudySession(d.id, 'shuffle', 'all', t0).length === 30);
   check('DAILY_GOAL is 21', DAILY_GOAL === 21);
+
+  // Fill behavior: when there are fewer due cards than the limit, the rest are
+  // pulled from non-due. This is the fix for the "1/1 session after adding a
+  // card" report — a fresh card is the only one due, but the user can still
+  // study a full session of 5/10/20 by filling from already-learned cards.
+  const f = createDeck('Fill');
+  const onlyDue = createCard(f.id, 'fresh', '.', t0);
+  const filler: Card[] = [];
+  for (let i = 0; i < 4; i++) filler.push(createCard(f.id, `old${i}`, '.', t0));
+  for (const c of filler) review(c, Rating.Good, t0); // push them into the future
+  check('1 due of 5, limit=3 → 3 cards (due + 2 filled)', getStudySession(f.id, 'shuffle', 3, t0).length === 3);
+  check(
+    '1 due of 5, limit=3 → set always contains the due card',
+    getStudySession(f.id, 'shuffle', 3, t0).some((c) => c.id === onlyDue.id)
+  );
 }
 
 // === S2: ordering — reviews before new, ascending retrievability ===========
@@ -154,15 +190,17 @@ console.log('\nS4 — What you miss surfaces first in the next session');
   const d = createDeck('Loop');
   createCard(d.id, 'easy', 'x', t0);
   createCard(d.id, 'hard', 'y', t0);
-  // 5 days: always get "easy" right, always get "hard" wrong.
+  // 5 days: always get "easy" right, always get "hard" wrong. We drive the
+  // loop from getDueCards (not getStudySession) so the test exercises pure
+  // FSRS scheduling without the deck-screen's "fill from non-due" behavior.
   for (let day = 0; day < 5; day++) {
     const now = new Date(t0.getTime() + day * DAY);
-    for (const card of getStudyQueue(d.id, now)) {
+    for (const card of getDueCards(d.id, now)) {
       review(card, card.front === 'easy' ? Rating.Good : Rating.Again, now);
     }
   }
   const tFinal = new Date(t0.getTime() + 6 * DAY);
-  const due = getStudyQueue(d.id, tFinal);
+  const due = getDueCards(d.id, tFinal);
   const hasHard = due.some((c) => c.front === 'hard');
   const hasEasy = due.some((c) => c.front === 'easy');
   check('The "hard" card (always wrong) stays due for review', hasHard, `(due=${due.map((c) => c.front)})`);

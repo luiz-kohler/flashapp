@@ -23,6 +23,7 @@ const MAPPING = {
   plus: 'add',
   'play.fill': 'play-arrow',
   'chevron.left': 'chevron-left',
+  'chevron.down': 'expand-more',
   trash: 'delete',
   'checkmark.circle.fill': 'check-circle',
   checkmark: 'check',

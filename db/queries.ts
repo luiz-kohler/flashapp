@@ -2,7 +2,7 @@ import { and, desc, eq, lte, sql } from 'drizzle-orm';
 
 import { initialCardState, reviewCard, type ReviewGrade } from '@/lib/fsrs';
 import { randomEmoji } from '@/lib/emojis';
-import { DAILY_GOAL, xpForRating } from '@/lib/progress';
+import { xpForRating } from '@/lib/progress';
 import { db } from './client';
 import { cards, decks, reviewLogs, type Card } from './schema';
 
@@ -51,17 +51,34 @@ function applyOrder<T extends { createdAt: Date }>(arr: T[], order: StudyOrder):
   return shuffle(arr);
 }
 
-// The study queue: due cards, capped at 21 per session so studying never gets
-// tiring. FSRS still decides WHICH cards are due and WHEN they return; the
-// within-session order is the user's choice (shuffle is the default).
-// Practice mode below is uncapped.
-export function getStudyQueue(deckId: number, order: StudyOrder = 'shuffle'): Card[] {
-  return applyOrder(getDueCards(deckId), order).slice(0, DAILY_GOAL);
-}
+// Session size cap chosen by the user from the deck screen (5/10/15/20) or
+// 'all' for no cap. Default lives in the UI.
+export type SessionLimit = number | 'all';
 
-// Practice mode: every card in the deck (even not-due), in the chosen order.
-export function getAllCardsForPractice(deckId: number, order: StudyOrder = 'shuffle'): Card[] {
-  return applyOrder(db.select().from(cards).where(eq(cards.deckId, deckId)).all(), order);
+// Builds a session of up to `limit` cards from the deck. FSRS-due cards take
+// priority (in due-asc order so the most overdue come first); if there aren't
+// enough due, we fill from non-due cards (also due-asc, i.e. the ones closest
+// to becoming due come next). This is what lets the user keep a meaningful
+// session even when only one card is technically due — the original report was
+// "I just added a card and the session is 1/1". With this, picking size=20
+// brings the new card in plus 19 non-due ones to actually practice.
+//
+// `order` (shuffle/recent/oldest) is applied LAST, within the selected set —
+// the selection rule (due-first) decides which cards go in, the order rule
+// decides the sequence the user sees them.
+export function getStudySession(
+  deckId: number,
+  order: StudyOrder,
+  limit: SessionLimit
+): Card[] {
+  const now = Date.now();
+  const all = db.select().from(cards).where(eq(cards.deckId, deckId)).all();
+  const byDueAsc = (a: Card, b: Card) => a.due.getTime() - b.due.getTime();
+  const due = all.filter((c) => c.due.getTime() <= now).sort(byDueAsc);
+  const notDue = all.filter((c) => c.due.getTime() > now).sort(byDueAsc);
+  const prioritized = [...due, ...notDue];
+  const picked = limit === 'all' ? prioritized : prioritized.slice(0, limit);
+  return applyOrder(picked, order);
 }
 
 // --- Gamification (derived from review history) -----------------------------

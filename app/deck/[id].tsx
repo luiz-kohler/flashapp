@@ -12,7 +12,7 @@ import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, Spacing } from '@/constants/theme';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
-import { cardsInDeck, deleteCard, getDeck } from '@/db/queries';
+import { cardsInDeck, deleteCard, getDeck, type SessionLimit } from '@/db/queries';
 import type { Card } from '@/db/schema';
 import { State } from '@/lib/fsrs';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -34,6 +34,10 @@ export default function DeckScreen() {
   // re-shuffle by tapping the shuffle icon again.
   const [sortMode, setSortMode] = useState<'recent' | 'oldest' | 'shuffle'>('recent');
   const [shuffleSeed, setShuffleSeed] = useState(0);
+  // Session-size cap chosen by the user. Default 20 — close to DAILY_GOAL (21)
+  // but a rounder, friendlier number for the menu. The play button passes this
+  // to the study screen, which builds the queue with due-first + fill.
+  const [sessionLimit, setSessionLimit] = useState<SessionLimit>(20);
 
   // drizzle's useLiveQuery only reacts to its own FROM table, so we re-read
   // explicitly: on focus (e.g. returning from import) and after each mutation.
@@ -93,17 +97,33 @@ export default function DeckScreen() {
   }
 
   function startStudy() {
+    if (all.length === 0) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // No due cards → fall back to practice mode (review all without affecting FSRS),
-    // so the play button always works, like Spotify's play.
-    const practice = dueCount === 0 && all.length > 0 ? '1' : undefined;
-    // Mirror the list's sort choice into the session, so play matches what the
-    // user sees above (shuffle = random; recent = newest first by creation).
+    // The study screen builds the queue with due-first + fill from non-due to
+    // honor the chosen limit, so play always has something to show as long as
+    // the deck has at least one card. The sort choice mirrors the list above.
     router.push({
       pathname: '/study/[deckId]',
-      params: { deckId: String(deckId), practice, sort: sortMode },
+      params: { deckId: String(deckId), sort: sortMode, limit: String(sessionLimit) },
     });
   }
+
+  // Tap the size pill → native action sheet to pick how many cards the next
+  // session should have. Same pattern as the card menu (ActionSheetIOS) so it
+  // feels native and stays out of the layout. 'All' means uncapped.
+  function pickSessionSize() {
+    Haptics.selectionAsync();
+    const options = ['Cancel', '5 cards', '10 cards', '15 cards', '20 cards', 'All cards'];
+    const values: SessionLimit[] = [5, 10, 15, 20, 'all'];
+    ActionSheetIOS.showActionSheetWithOptions(
+      { title: 'Session size', options, cancelButtonIndex: 0 },
+      (i) => {
+        if (i > 0 && i <= values.length) setSessionLimit(values[i - 1]);
+      }
+    );
+  }
+
+  const limitLabel = sessionLimit === 'all' ? 'All' : String(sessionLimit);
 
   function openImport() {
     router.push({ pathname: '/import/[deckId]', params: { deckId: String(deckId) } });
@@ -179,9 +199,20 @@ export default function DeckScreen() {
               {all.length} cards · {dueCount} due
             </ThemedText>
           </View>
+          {/* Session-size pill: tap to pick 5/10/15/20/All cards. Sits to the
+              left of play so the eye reads "[how much] ▶ [go]". Glass pill,
+              chevron-down hints it's a menu. */}
+          <Pressable onPress={pickSessionSize} hitSlop={10}>
+            <GlassSurface radius={14} style={styles.sizePill}>
+              <ThemedText style={[styles.sizePillText, { color: colors.text }]}>
+                {limitLabel}
+              </ThemedText>
+              <IconSymbol name="chevron.down" size={11} color={colors.textSecondary} />
+            </GlassSurface>
+          </Pressable>
           {/* Primary CTA — round icon-only play button, Spotify style. Always
-              visible: with due cards it starts a normal session; with none,
-              startStudy() falls back to practice mode. */}
+              visible: the study screen fills the session with due-first cards
+              then non-due up to the chosen limit, so play always has cards. */}
           <Pressable
             onPress={startStudy}
             hitSlop={12}
@@ -334,6 +365,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
+  sizePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    height: 32,
+  },
+  sizePillText: { fontSize: 14, fontWeight: '700' },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
