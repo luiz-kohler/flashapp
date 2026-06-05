@@ -191,6 +191,14 @@ export default function StudyScreen() {
   const goalToday = baseToday + reviewed;
   const goalMet = goalToday >= DAILY_GOAL;
   const accuracy = reviewed > 0 ? Math.round((correct / reviewed) * 100) : 0;
+  // Session progress for the top pill. `queue.length` grows when an Again
+  // rating re-queues a card, so the denominator honestly reflects "cards left
+  // in this session" rather than the static daily goal. `pos` advances after
+  // each rate, so `pos + 1` is the 1-indexed position of the card on screen;
+  // capped at the total so the done state shows e.g. "10/10".
+  const sessionTotal = queue.length;
+  const sessionPos = done ? sessionTotal : Math.min(pos + 1, sessionTotal);
+  const sessionComplete = done && sessionTotal > 0;
 
   function showAnswer() {
     Haptics.selectionAsync();
@@ -308,11 +316,13 @@ export default function StudyScreen() {
             </BlurView>
           </Pressable>
           <View style={styles.flex1} />
-          <View style={[styles.goalPill, goalMet && styles.goalPillMet]}>
-            <ThemedText style={styles.goalText}>
-              {Math.min(goalToday, DAILY_GOAL)}/{DAILY_GOAL}
-            </ThemedText>
-          </View>
+          {sessionTotal > 0 && (
+            <View style={[styles.goalPill, sessionComplete && styles.goalPillMet]}>
+              <ThemedText style={styles.goalText}>
+                {sessionPos}/{sessionTotal}
+              </ThemedText>
+            </View>
+          )}
         </View>
 
         {done ? (
