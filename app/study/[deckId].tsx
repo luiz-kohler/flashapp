@@ -4,7 +4,15 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Pressable, StyleSheet, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
+  Easing,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { RichText } from '@/components/rich-text';
@@ -16,22 +24,34 @@ import type { Card } from '@/db/schema';
 import { Rating, type ReviewGrade } from '@/lib/fsrs';
 import { DAILY_GOAL, xpForRating } from '@/lib/progress';
 
-// Only two ratings are surfaced in the UI: thumbs-down maps to Again (re-queues
-// the card and counts as a miss) and thumbs-up to Good (the standard correct
-// answer in FSRS). Hard and Easy still exist in the engine but aren't exposed
-// — the simplified interaction mirrors iOS-style "like / don't like" controls.
+// Only two ratings are surfaced: the X button maps to Again (re-queues the card
+// and counts as a miss) and the check to Good. Hard and Easy still exist in the
+// FSRS engine but aren't exposed — the simplified interaction is "wrong / right".
 // iOS system reds/greens (UIColor.systemRed / .systemGreen, light variant).
-const THUMBS_DOWN_COLOR = '#FF3B30';
-const THUMBS_UP_COLOR = '#34C759';
+const WRONG_COLOR = '#FF3B30';
+const CORRECT_COLOR = '#34C759';
+
+// Off-screen distance for the swipe-out animation. Width + a margin so the
+// card fully leaves the viewport before opacity reaches zero.
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const EXIT_DISTANCE = SCREEN_WIDTH + 80;
+
+// Idle pose of the card peeking out behind the current card. Slightly smaller
+// + nudged down so its top edge is visible above the front card.
+const BACK_SCALE = 0.94;
+const BACK_TRANSLATE_Y = 12;
+const BACK_OPACITY = 0.55;
 
 function RatingButton({
   bg,
   icon,
   onPress,
+  disabled,
 }: {
   bg: string;
-  icon: 'hand.thumbsup.fill' | 'hand.thumbsdown.fill';
+  icon: 'checkmark' | 'xmark';
   onPress: () => void;
+  disabled?: boolean;
 }) {
   // RN port of Framer Motion's whileTap={{ scale: 0.95 }} with
   // spring(stiffness: 400, damping: 17, mass: 1). That damping ratio is the
@@ -64,13 +84,13 @@ function RatingButton({
 
   return (
     <Pressable
-      onPressIn={() => springTo(0.95)}
-      onPressOut={() => springTo(1)}
-      onHoverIn={() => springTo(1.03)}
-      onHoverOut={() => springTo(1)}
-      onPress={onPress}
+      onPressIn={() => !disabled && springTo(0.95)}
+      onPressOut={() => !disabled && springTo(1)}
+      onHoverIn={() => !disabled && springTo(1.03)}
+      onHoverOut={() => !disabled && springTo(1)}
+      onPress={() => !disabled && onPress()}
       hitSlop={12}
-      style={styles.ratingWrap}>
+      style={[styles.ratingWrap, disabled && styles.ratingDisabled]}>
       <Animated.View
         style={[
           styles.ratingShadow,
@@ -83,7 +103,7 @@ function RatingButton({
             colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0)']}
             style={styles.ratingHighlight}
           />
-          <IconSymbol name={icon} size={30} color="#fff" />
+          <IconSymbol name={icon} size={32} color="#fff" weight="bold" />
         </View>
       </Animated.View>
     </Pressable>
@@ -112,6 +132,30 @@ export default function StudyScreen() {
   const [baseToday] = useState(() => getReviewsToday());
   const [sessionXp, setSessionXp] = useState(0);
   const reveal = useRef(new Animated.Value(0)).current;
+
+  // Front-card exit + back-card promote animations. Driving values:
+  //   cardX  — horizontal slide of the current card (0 → ±EXIT_DISTANCE)
+  //   cardSwipe — direction signal in [-1, 1], interpolated to a tilt
+  //   cardOpacity — fade-out of the exiting card
+  //   nextScale / nextTranslateY / nextOpacity — back card rising to the front
+  // All run together so the next card "catches" the position the front leaves.
+  const cardX = useRef(new Animated.Value(0)).current;
+  const cardSwipe = useRef(new Animated.Value(0)).current;
+  const cardOpacity = useRef(new Animated.Value(1)).current;
+  const nextScale = useRef(new Animated.Value(BACK_SCALE)).current;
+  const nextTranslateY = useRef(new Animated.Value(BACK_TRANSLATE_Y)).current;
+  const nextOpacity = useRef(new Animated.Value(BACK_OPACITY)).current;
+  // Guards against double-taps while the exit animation is still running.
+  const animating = useRef(false);
+
+  function resetStackAnim() {
+    cardX.setValue(0);
+    cardSwipe.setValue(0);
+    cardOpacity.setValue(1);
+    nextScale.setValue(BACK_SCALE);
+    nextTranslateY.setValue(BACK_TRANSLATE_Y);
+    nextOpacity.setValue(BACK_OPACITY);
+  }
 
   const sReveal = useAudioPlayer(require('@/assets/sounds/reveal.wav'));
   const sAgain = useAudioPlayer(require('@/assets/sounds/again.wav'));
@@ -146,7 +190,8 @@ export default function StudyScreen() {
   }
 
   function rate(grade: ReviewGrade) {
-    if (!current) return;
+    if (!current || animating.current) return;
+    animating.current = true;
     const wasUnderGoal = goalToday < DAILY_GOAL;
     Haptics.impactAsync(
       grade === Rating.Again ? Haptics.ImpactFeedbackStyle.Rigid : Haptics.ImpactFeedbackStyle.Light
@@ -154,17 +199,67 @@ export default function StudyScreen() {
     playSound(soundByGrade[grade]);
     setSessionXp((n) => n + xpForRating(grade));
     const outcome = recordReview(current, grade);
-    if (grade === Rating.Again) {
-      setQueue((q) => [...q, { ...current, ...outcome.card } as Card]);
-    }
     if (grade === Rating.Good || grade === Rating.Easy) setCorrect((n) => n + 1);
     if (wasUnderGoal && goalToday + 1 >= DAILY_GOAL) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
     setReviewed((n) => n + 1);
-    reveal.setValue(0);
-    setRevealed(false);
-    setPos((p) => p + 1);
+
+    // Wrong → swipe left, correct → swipe right. easeOut cubic gives the snappy
+    // "card flicked off the deck" feel; the back-card promote uses the same
+    // easing so the two motions feel coupled.
+    const direction = grade === Rating.Again ? -1 : 1;
+    const easing = Easing.out(Easing.cubic);
+    Animated.parallel([
+      Animated.timing(cardX, {
+        toValue: direction * EXIT_DISTANCE,
+        duration: 320,
+        easing,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardSwipe, {
+        toValue: direction,
+        duration: 320,
+        easing,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardOpacity, {
+        toValue: 0,
+        duration: 260,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(nextScale, {
+        toValue: 1,
+        duration: 320,
+        easing,
+        useNativeDriver: true,
+      }),
+      Animated.timing(nextTranslateY, {
+        toValue: 0,
+        duration: 320,
+        easing,
+        useNativeDriver: true,
+      }),
+      Animated.timing(nextOpacity, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      // Apply all state changes synchronously, then reset the anim values to
+      // their idle pose. Because the back card was promoted to the front pose
+      // and is the same card that will now render as `current`, there's no
+      // visible snap.
+      if (grade === Rating.Again) {
+        setQueue((q) => [...q, { ...current, ...outcome.card } as Card]);
+      }
+      reveal.setValue(0);
+      setRevealed(false);
+      setPos((p) => p + 1);
+      resetStackAnim();
+      animating.current = false;
+    });
   }
 
   return (
@@ -205,27 +300,79 @@ export default function StudyScreen() {
           </View>
         ) : (
           <View style={styles.center}>
-            {/* Glass card */}
-            <BlurView tint="systemThickMaterialDark" intensity={55} style={styles.card}>
-              <ThemedText style={[styles.faceLabel, { color: accent }]}>FRONT</ThemedText>
-              <RichText text={current.front} style={styles.front} />
-              {revealed && (
-                <Animated.View
+            <View style={styles.stackWrap}>
+              {/* Third card peeking deeper in the stack. Static — purely
+                  decorative depth cue, never animated. */}
+              {queue[pos + 2] && (
+                <View
+                  pointerEvents="none"
                   style={[
-                    styles.answerWrap,
+                    styles.stackLayer,
                     {
-                      opacity: reveal,
-                      transform: [
-                        { translateY: reveal.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) },
-                      ],
+                      opacity: 0.3,
+                      transform: [{ scale: 0.88 }, { translateY: BACK_TRANSLATE_Y * 2 }],
                     },
                   ]}>
-                  <View style={styles.divider} />
-                  <ThemedText style={[styles.faceLabel, { color: accent }]}>BACK</ThemedText>
-                  <RichText text={current.back} style={styles.back} />
+                  <View style={styles.stackPlaceholder} />
+                </View>
+              )}
+
+              {/* Second card — the next one in the queue. Renders its real
+                  front text so when it animates up to take the front position,
+                  the content is already there (no flash). */}
+              {queue[pos + 1] && (
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.stackLayer,
+                    {
+                      opacity: nextOpacity,
+                      transform: [{ scale: nextScale }, { translateY: nextTranslateY }],
+                    },
+                  ]}>
+                  <BlurView tint="systemThickMaterialDark" intensity={50} style={styles.card}>
+                    <ThemedText style={[styles.faceLabel, { color: accent }]}>FRONT</ThemedText>
+                    <RichText text={queue[pos + 1].front} style={styles.front} />
+                  </BlurView>
                 </Animated.View>
               )}
-            </BlurView>
+
+              {/* Front card — the one being reviewed. Slides off on rate. */}
+              <Animated.View
+                style={{
+                  opacity: cardOpacity,
+                  transform: [
+                    { translateX: cardX },
+                    {
+                      rotate: cardSwipe.interpolate({
+                        inputRange: [-1, 0, 1],
+                        outputRange: ['-14deg', '0deg', '14deg'],
+                      }),
+                    },
+                  ],
+                }}>
+                <BlurView tint="systemThickMaterialDark" intensity={55} style={styles.card}>
+                  <ThemedText style={[styles.faceLabel, { color: accent }]}>FRONT</ThemedText>
+                  <RichText text={current.front} style={styles.front} />
+                  {revealed && (
+                    <Animated.View
+                      style={[
+                        styles.answerWrap,
+                        {
+                          opacity: reveal,
+                          transform: [
+                            { translateY: reveal.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) },
+                          ],
+                        },
+                      ]}>
+                      <View style={styles.divider} />
+                      <ThemedText style={[styles.faceLabel, { color: accent }]}>BACK</ThemedText>
+                      <RichText text={current.back} style={styles.back} />
+                    </Animated.View>
+                  )}
+                </BlurView>
+              </Animated.View>
+            </View>
 
             <ThemedText style={styles.stats}>
               Cards: {reviewed} · Correct: {reviewed > 0 ? `${accuracy}%` : '—'}
@@ -240,13 +387,13 @@ export default function StudyScreen() {
             ) : (
               <View style={styles.ratings}>
                 <RatingButton
-                  bg={THUMBS_DOWN_COLOR}
-                  icon="hand.thumbsdown.fill"
+                  bg={WRONG_COLOR}
+                  icon="xmark"
                   onPress={() => rate(Rating.Again)}
                 />
                 <RatingButton
-                  bg={THUMBS_UP_COLOR}
-                  icon="hand.thumbsup.fill"
+                  bg={CORRECT_COLOR}
+                  icon="checkmark"
                   onPress={() => rate(Rating.Good)}
                 />
               </View>
@@ -283,6 +430,25 @@ const styles = StyleSheet.create({
   goalText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
   center: { flex: 1, justifyContent: 'center', gap: Spacing.three },
+
+  // Holds the front card + two layers peeking behind it. Front card sits in
+  // normal flow so it drives the wrapper's height; back layers are absolute
+  // and pinned to the same rect so they scale relative to the front card.
+  stackWrap: { position: 'relative' },
+  stackLayer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  stackPlaceholder: {
+    flex: 1,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
 
   card: {
     borderRadius: 28,
@@ -329,6 +495,7 @@ const styles = StyleSheet.create({
     flex: 1,
     maxWidth: 180,
   },
+  ratingDisabled: { opacity: 0.5 },
   // Outer view carries the iOS drop shadow tinted to the button color.
   // overflow:hidden lives on the inner view so the shadow isn't clipped.
   ratingShadow: {

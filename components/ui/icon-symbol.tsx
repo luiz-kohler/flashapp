@@ -25,6 +25,7 @@ const MAPPING = {
   'chevron.left': 'chevron-left',
   trash: 'delete',
   'checkmark.circle.fill': 'check-circle',
+  checkmark: 'check',
   sparkles: 'auto-awesome',
   xmark: 'close',
   shuffle: 'shuffle',
