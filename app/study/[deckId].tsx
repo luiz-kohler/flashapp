@@ -362,7 +362,10 @@ export default function StudyScreen() {
 
               {/* Second card — the next one in the queue. Renders its real
                   front text so when it animates up to take the front position,
-                  the content is already there (no flash). */}
+                  the content is already there (no flash). The hidden back
+                  block mirrors the front card's layout so both have identical
+                  height — when the next card promotes to front, the card edges
+                  stay put instead of snapping to a new size. */}
               {queue[pos + 1] && (
                 <Animated.View
                   pointerEvents="none"
@@ -376,6 +379,14 @@ export default function StudyScreen() {
                   <BlurView tint="systemThickMaterialDark" intensity={50} style={styles.card}>
                     <ThemedText style={[styles.faceLabel, { color: accent }]}>FRONT</ThemedText>
                     <RichText text={queue[pos + 1].front} style={styles.front} />
+                    <View
+                      style={[styles.answerWrap, styles.hiddenSpacer]}
+                      accessibilityElementsHidden
+                      importantForAccessibility="no-hide-descendants">
+                      <View style={styles.divider} />
+                      <ThemedText style={[styles.faceLabel, { color: accent }]}>BACK</ThemedText>
+                      <RichText text={queue[pos + 1].back} style={styles.back} />
+                    </View>
                   </BlurView>
                 </Animated.View>
               )}
@@ -397,22 +408,28 @@ export default function StudyScreen() {
                 <BlurView tint="systemThickMaterialDark" intensity={55} style={styles.card}>
                   <ThemedText style={[styles.faceLabel, { color: accent }]}>FRONT</ThemedText>
                   <RichText text={current.front} style={styles.front} />
-                  {revealed && (
-                    <Animated.View
-                      style={[
-                        styles.answerWrap,
-                        {
-                          opacity: reveal,
-                          transform: [
-                            { translateY: reveal.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) },
-                          ],
-                        },
-                      ]}>
-                      <View style={styles.divider} />
-                      <ThemedText style={[styles.faceLabel, { color: accent }]}>BACK</ThemedText>
-                      <RichText text={current.back} style={styles.back} />
-                    </Animated.View>
-                  )}
+                  {/* Always rendered (even before reveal) so the card height is
+                      constant — the back is hidden by opacity only. This keeps
+                      the card, stats, and bottom row in the exact same position
+                      across the front↔reveal↔next-card transitions; only the
+                      opacity of the back content changes. */}
+                  <Animated.View
+                    pointerEvents={revealed ? 'auto' : 'none'}
+                    accessibilityElementsHidden={!revealed}
+                    importantForAccessibility={revealed ? 'auto' : 'no-hide-descendants'}
+                    style={[
+                      styles.answerWrap,
+                      {
+                        opacity: reveal,
+                        transform: [
+                          { translateY: reveal.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) },
+                        ],
+                      },
+                    ]}>
+                    <View style={styles.divider} />
+                    <ThemedText style={[styles.faceLabel, { color: accent }]}>BACK</ThemedText>
+                    <RichText text={current.back} style={styles.back} />
+                  </Animated.View>
                 </BlurView>
               </Animated.View>
             </View>
@@ -509,6 +526,10 @@ const styles = StyleSheet.create({
   faceLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 1.5, marginBottom: Spacing.two },
   front: { fontSize: 26, fontWeight: '700', color: '#fff', textAlign: 'center', lineHeight: 32 },
   answerWrap: { alignSelf: 'stretch', alignItems: 'center', marginTop: Spacing.three },
+  // Reserves the same vertical space as the visible answer block, but stays
+  // invisible. Used in the next-card preview so its height matches the front
+  // card — the promote-to-front animation lands on the same card dimensions.
+  hiddenSpacer: { opacity: 0 },
   divider: {
     height: StyleSheet.hairlineWidth,
     alignSelf: 'stretch',
@@ -534,7 +555,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'stretch',
     gap: Spacing.three,
-    paddingVertical: Spacing.two,
+    // No vertical padding here — the rating buttons must occupy the same
+    // height as the "Show answer" button so the bottom row doesn't shift
+    // when switching between the two states.
   },
   ratingWrap: {
     flex: 1,
