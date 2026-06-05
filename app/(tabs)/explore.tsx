@@ -172,7 +172,8 @@ export default function ProgressScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  safe: { flex: 1, paddingHorizontal: Spacing.three },
+  // Same side padding as the Decks and deck screens, for consistency.
+  safe: { flex: 1, paddingHorizontal: Spacing.four },
   scroll: { gap: Spacing.three, paddingBottom: 120 },
   title: { fontSize: 34, fontWeight: '700', lineHeight: 41, paddingTop: Spacing.two },
   streakCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.four },
