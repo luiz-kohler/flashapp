@@ -1,8 +1,7 @@
-import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,7 +10,8 @@ import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, Spacing } from '@/constants/theme';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
-import { cardsInDeck, createCard, deckById, deleteCard, updateDeck } from '@/db/queries';
+import { cardsInDeck, createCard, deleteCard, getDeck, updateDeck } from '@/db/queries';
+import type { Card } from '@/db/schema';
 import { EMOJIS } from '@/lib/emojis';
 import { State } from '@/lib/fsrs';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -22,20 +22,28 @@ export default function DeckScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const deckId = Number(id);
 
-  const { data: deckRows } = useLiveQuery(deckById(deckId));
-  const deck = deckRows?.[0];
-  const { data: cards } = useLiveQuery(cardsInDeck(deckId));
+  const [deck, setDeck] = useState(() => getDeck(deckId));
+  const [cards, setCards] = useState<Card[]>(() => cardsInDeck(deckId).all());
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  // drizzle's useLiveQuery only reacts to its own FROM table, so we re-read
+  // explicitly: on focus (e.g. returning from import) and after each mutation.
+  const refresh = useCallback(() => {
+    setDeck(getDeck(deckId));
+    setCards(cardsInDeck(deckId).all());
+  }, [deckId]);
+  useFocusEffect(useCallback(() => refresh(), [refresh]));
 
   function pickEmoji(e: string) {
     updateDeck(deckId, { emoji: e });
     Haptics.selectionAsync();
     setPickerOpen(false);
+    refresh();
   }
 
   const accent = deck?.color ?? colors.tint;
   const now = Date.now();
-  const all = cards ?? [];
+  const all = cards;
   const dueCount = all.filter((c) => c.due.getTime() <= now).length;
 
   function handleAddCard() {
@@ -47,6 +55,7 @@ export default function DeckScreen() {
         if (b) {
           createCard(deckId, f, b);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          refresh();
         }
       });
     });
@@ -155,7 +164,7 @@ export default function DeckScreen() {
           renderItem={({ item }) => {
             const status = statusFor(item.state, item.due.getTime());
             return (
-              <SwipeToDelete onConfirm={() => deleteCard(item.id)}>
+              <SwipeToDelete onConfirm={() => { deleteCard(item.id); refresh(); }}>
                 <GlassSurface radius={16} style={styles.cardRow}>
                 <View style={styles.cardText}>
                   <ThemedText style={styles.cardFront} numberOfLines={1}>
