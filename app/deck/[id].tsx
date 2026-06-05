@@ -12,9 +12,8 @@ import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, Spacing } from '@/constants/theme';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
-import { cardsInDeck, deleteCard, getDeck, updateDeck } from '@/db/queries';
+import { cardsInDeck, deleteCard, getDeck } from '@/db/queries';
 import type { Card } from '@/db/schema';
-import { EMOJIS } from '@/lib/emojis';
 import { State } from '@/lib/fsrs';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -27,7 +26,6 @@ export default function DeckScreen() {
 
   const [deck, setDeck] = useState(() => getDeck(deckId));
   const [cards, setCards] = useState<Card[]>(() => cardsInDeck(deckId).all());
-  const [pickerOpen, setPickerOpen] = useState(false);
   // Card selected for preview (single tap). Null = preview closed.
   const [previewCard, setPreviewCard] = useState<Card | null>(null);
   // Sort mode for the "All cards" list. 'recent' = newest first (default, like
@@ -44,13 +42,6 @@ export default function DeckScreen() {
     setCards(cardsInDeck(deckId).all());
   }, [deckId]);
   useFocusEffect(useCallback(() => refresh(), [refresh]));
-
-  function pickEmoji(e: string) {
-    updateDeck(deckId, { emoji: e });
-    Haptics.selectionAsync();
-    setPickerOpen(false);
-    refresh();
-  }
 
   const accent = deck?.color ?? colors.tint;
   const now = Date.now();
@@ -176,13 +167,12 @@ export default function DeckScreen() {
           </View>
         </View>
 
-        {/* Compact hero row — emoji | title+subtitle | play. Apple Music /
-            Spotify compact style: horizontal instead of stacked, so the list
-            of cards starts higher on the screen. */}
+        {/* Compact hero row — title+subtitle | play. Apple Music / Spotify
+            compact style: horizontal instead of stacked, so the list of cards
+            starts higher on the screen. The deck emoji is intentionally not
+            shown here (it lives on the decks list); this page is focused on
+            the cards themselves. */}
         <View style={styles.hero}>
-          <Pressable onPress={() => setPickerOpen(true)} hitSlop={8}>
-            <ThemedText style={styles.deckEmoji}>{deck?.emoji ?? '📚'}</ThemedText>
-          </Pressable>
           <View style={styles.heroText}>
             <ThemedText style={styles.title} numberOfLines={1}>{deck?.name ?? 'Deck'}</ThemedText>
             <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>
@@ -272,25 +262,6 @@ export default function DeckScreen() {
           }}
         />
 
-        <Modal
-          visible={pickerOpen}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setPickerOpen(false)}>
-          <Pressable style={styles.modalOverlay} onPress={() => setPickerOpen(false)}>
-            <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
-              <ThemedText style={styles.modalTitle}>Choose an icon</ThemedText>
-              <View style={styles.emojiGrid}>
-                {EMOJIS.map((e) => (
-                  <Pressable key={e} onPress={() => pickEmoji(e)} style={styles.emojiCell}>
-                    <ThemedText style={styles.emojiOption}>{e}</ThemedText>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          </Pressable>
-        </Modal>
-
         {/* Card preview (single tap on a row). Shows the full front and back
             without touching FSRS scheduling — read-only. Tap the dim overlay
             (outside the card) to close. We don't close on a tap inside the
@@ -348,7 +319,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.three,
   },
   heroText: { flex: 1, gap: 2, minWidth: 0 },
-  deckEmoji: { fontSize: 40, lineHeight: 48 },
   title: { fontSize: 24, fontWeight: '700', lineHeight: 28 },
   subtitle: { fontSize: 13 },
   cta: {
@@ -393,19 +363,6 @@ const styles = StyleSheet.create({
   cardBack: { fontSize: 14 },
   pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   pillText: { fontSize: 11, fontWeight: '700' },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
-  modalSheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.six,
-    gap: Spacing.three,
-  },
-  modalTitle: { fontSize: 17, fontWeight: '700', textAlign: 'center' },
-  emojiGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  emojiCell: { width: '12.5%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
-  emojiOption: { fontSize: 28, lineHeight: 36 },
   previewOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.55)',
