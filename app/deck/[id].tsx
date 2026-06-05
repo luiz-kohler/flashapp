@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { ActionSheetIOS, FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -64,6 +64,20 @@ export default function DeckScreen() {
 
   function openImport() {
     router.push({ pathname: '/import/[deckId]', params: { deckId: String(deckId) } });
+  }
+
+  // Hold a card → native action sheet with options (currently Excluir).
+  function showCardMenu(card: Card) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    ActionSheetIOS.showActionSheetWithOptions(
+      { title: card.front, options: ['Cancelar', 'Excluir card'], destructiveButtonIndex: 1, cancelButtonIndex: 0 },
+      (i) => {
+        if (i === 1) {
+          deleteCard(card.id);
+          refresh();
+        }
+      }
+    );
   }
 
   function statusFor(state: number, due: number): { label: string; color: string } {
@@ -159,6 +173,7 @@ export default function DeckScreen() {
             return (
               <Animated.View layout={LinearTransition} exiting={FadeOut.duration(220)}>
                 <SwipeToDelete onConfirm={() => { deleteCard(item.id); refresh(); }}>
+                  <Pressable onLongPress={() => showCardMenu(item)} delayLongPress={350}>
                   <GlassSurface radius={16} style={styles.cardRow}>
                 <View style={styles.cardText}>
                   <RichText
@@ -178,6 +193,7 @@ export default function DeckScreen() {
                   </ThemedText>
                 </View>
                 </GlassSurface>
+                  </Pressable>
                 </SwipeToDelete>
               </Animated.View>
             );

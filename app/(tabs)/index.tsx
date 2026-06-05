@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { ActionSheetIOS, Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,6 +21,20 @@ export default function DecksScreen() {
   const [decks, setDecks] = useState(() => decksWithCounts().all());
   const refresh = useCallback(() => setDecks(decksWithCounts().all()), []);
   useFocusEffect(useCallback(() => refresh(), [refresh]));
+
+  // Hold a deck → native action sheet with options (currently Excluir).
+  function showDeckMenu(item: { id: number; name: string }) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    ActionSheetIOS.showActionSheetWithOptions(
+      { title: item.name, options: ['Cancelar', 'Excluir deck'], destructiveButtonIndex: 1, cancelButtonIndex: 0 },
+      (i) => {
+        if (i === 1) {
+          deleteDeck(item.id);
+          refresh();
+        }
+      }
+    );
+  }
 
   function handleAddDeck() {
     Alert.prompt('Novo deck', 'Como vai se chamar?', (name) => {
@@ -70,6 +84,8 @@ export default function DecksScreen() {
                 Haptics.selectionAsync();
                 router.push({ pathname: '/deck/[id]', params: { id: String(item.id) } });
               }}
+              onLongPress={() => showDeckMenu(item)}
+              delayLongPress={350}
               style={({ pressed }) => [
                 styles.cardShadow,
                 { opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] },
