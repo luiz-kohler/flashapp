@@ -12,6 +12,7 @@ import {
   Pressable,
   StyleSheet,
   View,
+  type EasingFunction,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -42,13 +43,19 @@ const BACK_SCALE = 0.94;
 const BACK_TRANSLATE_Y = 12;
 const BACK_OPACITY = 0.55;
 
+// Apple-ish "ease out" curve (cubic-bezier(0.22, 1, 0.36, 1) ≈ easeOutQuart).
+// Starts moving fast then settles gently — the entrance of the next card and
+// the fade-in of the bottom action area both use it so the motion reads as a
+// single coordinated gesture instead of two independent timing curves.
+const ENTRANCE_EASING: EasingFunction = Easing.bezier(0.22, 1, 0.36, 1);
+
 function RatingButton({
-  bg,
+  color,
   icon,
   onPress,
   disabled,
 }: {
-  bg: string;
+  color: string;
   icon: 'checkmark' | 'xmark';
   onPress: () => void;
   disabled?: boolean;
@@ -91,20 +98,19 @@ function RatingButton({
       onPress={() => !disabled && onPress()}
       hitSlop={12}
       style={[styles.ratingWrap, disabled && styles.ratingDisabled]}>
-      <Animated.View
-        style={[
-          styles.ratingShadow,
-          { shadowColor: bg, transform: [{ scale }] },
-        ]}>
-        <View style={[styles.ratingBtn, { backgroundColor: bg }]}>
-          {/* Soft top sheen — convex highlight that fades into the button color. */}
-          <LinearGradient
-            pointerEvents="none"
-            colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0)']}
-            style={styles.ratingHighlight}
-          />
-          <IconSymbol name={icon} size={32} color="#fff" weight="bold" />
-        </View>
+      <Animated.View style={{ transform: [{ scale }] }}>
+        {/* Glass surface tinted with the intent color — same blur material
+            as the reveal button, just with a low-alpha color overlay and a
+            stronger colored border so the meaning still reads at a glance. */}
+        <BlurView
+          tint="systemThickMaterialDark"
+          intensity={40}
+          style={[
+            styles.ratingBtn,
+            { backgroundColor: color + '26', borderColor: color + 'B3' },
+          ]}>
+          <IconSymbol name={icon} size={26} color={color} weight="bold" />
+        </BlurView>
       </Animated.View>
     </Pressable>
   );
@@ -145,6 +151,10 @@ export default function StudyScreen() {
   const nextScale = useRef(new Animated.Value(BACK_SCALE)).current;
   const nextTranslateY = useRef(new Animated.Value(BACK_TRANSLATE_Y)).current;
   const nextOpacity = useRef(new Animated.Value(BACK_OPACITY)).current;
+  // Opacity of the bottom action area (Show answer / X · ✓ buttons). Fades
+  // out during the swipe-out and back in once the new card is in place, so
+  // the button swap doesn't "pop" — it crossfades with the card transition.
+  const bottomOpacity = useRef(new Animated.Value(1)).current;
   // Guards against double-taps while the exit animation is still running.
   const animating = useRef(false);
 
@@ -205,22 +215,24 @@ export default function StudyScreen() {
     }
     setReviewed((n) => n + 1);
 
-    // Wrong → swipe left, correct → swipe right. easeOut cubic gives the snappy
-    // "card flicked off the deck" feel; the back-card promote uses the same
-    // easing so the two motions feel coupled.
+    // Wrong → swipe left, correct → swipe right. easeOutCubic on the exit
+    // gives the snappy "card flicked off the deck" feel. The next-card
+    // entrance uses a softer easeOutQuart and starts ~70ms later, so the
+    // front card visibly clears the area before the back card rises into
+    // focus — the two motions read as a sequence, not a simultaneous lurch.
     const direction = grade === Rating.Again ? -1 : 1;
-    const easing = Easing.out(Easing.cubic);
+    const exitEasing = Easing.out(Easing.cubic);
     Animated.parallel([
       Animated.timing(cardX, {
         toValue: direction * EXIT_DISTANCE,
         duration: 320,
-        easing,
+        easing: exitEasing,
         useNativeDriver: true,
       }),
       Animated.timing(cardSwipe, {
         toValue: direction,
         duration: 320,
-        easing,
+        easing: exitEasing,
         useNativeDriver: true,
       }),
       Animated.timing(cardOpacity, {
@@ -229,23 +241,37 @@ export default function StudyScreen() {
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
-      Animated.timing(nextScale, {
-        toValue: 1,
-        duration: 320,
-        easing,
-        useNativeDriver: true,
-      }),
-      Animated.timing(nextTranslateY, {
+      // Fade the bottom action area out while the front card exits, so the
+      // rating buttons don't disappear with a hard cut when state resets.
+      Animated.timing(bottomOpacity, {
         toValue: 0,
-        duration: 320,
-        easing,
+        duration: 180,
+        easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
-      Animated.timing(nextOpacity, {
-        toValue: 1,
-        duration: 220,
-        useNativeDriver: true,
-      }),
+      Animated.sequence([
+        Animated.delay(70),
+        Animated.parallel([
+          Animated.timing(nextScale, {
+            toValue: 1,
+            duration: 320,
+            easing: ENTRANCE_EASING,
+            useNativeDriver: true,
+          }),
+          Animated.timing(nextTranslateY, {
+            toValue: 0,
+            duration: 320,
+            easing: ENTRANCE_EASING,
+            useNativeDriver: true,
+          }),
+          Animated.timing(nextOpacity, {
+            toValue: 1,
+            duration: 320,
+            easing: ENTRANCE_EASING,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
     ]).start(() => {
       // Apply all state changes synchronously, then reset the anim values to
       // their idle pose. Because the back card was promoted to the front pose
@@ -258,6 +284,13 @@ export default function StudyScreen() {
       setRevealed(false);
       setPos((p) => p + 1);
       resetStackAnim();
+      // Fade the new "Show answer" button in gently instead of popping it in.
+      Animated.timing(bottomOpacity, {
+        toValue: 1,
+        duration: 240,
+        easing: ENTRANCE_EASING,
+        useNativeDriver: true,
+      }).start();
       animating.current = false;
     });
   }
@@ -378,26 +411,28 @@ export default function StudyScreen() {
               Cards: {reviewed} · Correct: {reviewed > 0 ? `${accuracy}%` : '—'}
             </ThemedText>
 
-            {!revealed ? (
-              <Pressable onPress={showAnswer} style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}>
-                <BlurView tint="systemThickMaterialDark" intensity={40} style={styles.revealBtn}>
-                  <ThemedText style={styles.revealText}>Show answer</ThemedText>
-                </BlurView>
-              </Pressable>
-            ) : (
-              <View style={styles.ratings}>
-                <RatingButton
-                  bg={WRONG_COLOR}
-                  icon="xmark"
-                  onPress={() => rate(Rating.Again)}
-                />
-                <RatingButton
-                  bg={CORRECT_COLOR}
-                  icon="checkmark"
-                  onPress={() => rate(Rating.Good)}
-                />
-              </View>
-            )}
+            <Animated.View style={{ opacity: bottomOpacity }}>
+              {!revealed ? (
+                <Pressable onPress={showAnswer} style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}>
+                  <BlurView tint="systemThickMaterialDark" intensity={40} style={styles.revealBtn}>
+                    <ThemedText style={styles.revealText}>Show answer</ThemedText>
+                  </BlurView>
+                </Pressable>
+              ) : (
+                <View style={styles.ratings}>
+                  <RatingButton
+                    color={WRONG_COLOR}
+                    icon="xmark"
+                    onPress={() => rate(Rating.Again)}
+                  />
+                  <RatingButton
+                    color={CORRECT_COLOR}
+                    icon="checkmark"
+                    onPress={() => rate(Rating.Good)}
+                  />
+                </View>
+              )}
+            </Animated.View>
           </View>
         )}
       </SafeAreaView>
@@ -496,28 +531,17 @@ const styles = StyleSheet.create({
     maxWidth: 180,
   },
   ratingDisabled: { opacity: 0.5 },
-  // Outer view carries the iOS drop shadow tinted to the button color.
-  // overflow:hidden lives on the inner view so the shadow isn't clipped.
-  ratingShadow: {
-    borderRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-  },
+  // Same glass treatment as revealBtn (BlurView + hairline border), tinted
+  // with the intent color. The borderColor/backgroundColor get color-mixed
+  // alpha overlays inline in RatingButton, so only the shared layout lives
+  // here.
   ratingBtn: {
-    height: 64,
-    borderRadius: 16,
+    height: 56,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    elevation: 8,
-  },
-  ratingHighlight: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    height: '55%',
+    borderWidth: StyleSheet.hairlineWidth,
   },
 
   doneWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two },
