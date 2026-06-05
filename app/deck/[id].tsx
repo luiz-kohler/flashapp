@@ -93,7 +93,10 @@ export default function DeckScreen() {
 
   function startStudy() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push({ pathname: '/study/[deckId]', params: { deckId: String(deckId) } });
+    // Sem cards devidos → cai em modo prática (revisa todos sem afetar FSRS).
+    // Assim o botão de play funciona sempre, igual o play do Spotify.
+    const practice = dueCount === 0 && all.length > 0 ? '1' : undefined;
+    router.push({ pathname: '/study/[deckId]', params: { deckId: String(deckId), practice } });
   }
 
   function openImport() {
@@ -159,21 +162,15 @@ export default function DeckScreen() {
           </ThemedText>
         </View>
 
-        {/* Primary CTA — compacto, alinhado à esquerda (estilo botão de play do Spotify). */}
-        {dueCount > 0 ? (
-          <Pressable
-            onPress={startStudy}
-            style={({ pressed }) => [styles.cta, { backgroundColor: colors.tint, opacity: pressed ? 0.85 : 1 }]}>
-            <IconSymbol name="play.fill" size={18} color="#fff" />
-            <ThemedText style={styles.ctaText}>Bora!</ThemedText>
-          </Pressable>
-        ) : (
-          <View style={[styles.cta, styles.ctaDone]}>
-            <ThemedText style={[styles.ctaText, { color: colors.textSecondary }]}>
-              Tudo em dia 🎉
-            </ThemedText>
-          </View>
-        )}
+        {/* Primary CTA — botão de play redondo, só ícone, estilo Spotify.
+            Sempre visível: com cards devidos abre a sessão normal; sem devidos,
+            startStudy() cai em modo prática. */}
+        <Pressable
+          onPress={startStudy}
+          hitSlop={12}
+          style={({ pressed }) => [styles.cta, { backgroundColor: accent, opacity: pressed ? 0.85 : 1 }]}>
+          <IconSymbol name="play.fill" size={24} color="#fff" />
+        </Pressable>
 
         <View style={styles.sectionHeader}>
           <ThemedText style={[styles.sectionLabel, { color: colors.textSecondary }]}>
@@ -277,15 +274,18 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 14 },
   cta: {
     alignSelf: 'flex-start',
-    flexDirection: 'row',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
-    gap: Spacing.one,
-    height: 40,
-    paddingHorizontal: Spacing.three,
-    borderRadius: 999,
+    justifyContent: 'center',
+    // Sombra leve pra dar o pop do botão de play do Spotify.
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
-  ctaDone: { alignSelf: 'stretch', justifyContent: 'center', backgroundColor: 'transparent', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(128,128,128,0.3)' },
-  ctaText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
