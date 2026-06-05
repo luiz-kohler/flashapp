@@ -99,8 +99,8 @@ export default function StudyScreen() {
 
   return (
     <View style={styles.root}>
-      {/* Dark gradient with a faint hint of the deck's accent. */}
-      <LinearGradient colors={[accent + '26', '#070708']} style={StyleSheet.absoluteFill} />
+      {/* Same dark background used across the rest of the app. */}
+      <LinearGradient colors={['#101114', '#000000']} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         {/* Top bar */}
         <View style={styles.topBar}>
