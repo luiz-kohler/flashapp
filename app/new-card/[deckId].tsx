@@ -66,7 +66,7 @@ export default function NewCardScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
-          <ThemedText style={styles.title}>Novo card</ThemedText>
+          <ThemedText style={styles.title}>New card</ThemedText>
           <Pressable onPress={() => router.back()} hitSlop={12}>
             <IconSymbol name="xmark" size={26} color={colors.textSecondary} />
           </Pressable>
@@ -78,8 +78,8 @@ export default function NewCardScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}>
-          {field('FRENTE', front, setFront, 'Pergunta ou termo', true)}
-          {field('VERSO', back, setBack, 'Resposta')}
+          {field('FRONT', front, setFront, 'Question or term', true)}
+          {field('BACK', back, setBack, 'Answer')}
 
           <Pressable
             onPress={save}
@@ -88,7 +88,7 @@ export default function NewCardScreen() {
               styles.saveBtn,
               { backgroundColor: colors.tint, opacity: !canSave ? 0.4 : pressed ? 0.85 : 1 },
             ]}>
-            <ThemedText style={styles.saveText}>Salvar card</ThemedText>
+            <ThemedText style={styles.saveText}>Save card</ThemedText>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>

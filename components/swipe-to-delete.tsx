@@ -8,7 +8,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 // Row width ≈ screen width minus the two side paddings (Spacing.four = 24 each).
 const ROW_WIDTH = Dimensions.get('window').width - 48;
 // Must swipe at least 30% of the row to actually delete — avoids accidents
-// without exigir um arrasto tão longo.
+// without requiring a very long drag.
 const THRESHOLD = ROW_WIDTH * 0.3;
 
 type Props = {

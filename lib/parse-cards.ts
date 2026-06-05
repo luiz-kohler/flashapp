@@ -1,6 +1,6 @@
 export type ParsedCard = { front: string; back: string };
 
-// Parse pasted text into cards. Format: one card per line, "frente | verso".
+// Parse pasted text into cards. Format: one card per line, "front | back".
 // Tolerant: strips leading list markers (-, *, •, "1.") and ignores any line
 // without a "|" (so stray prose/headers from an AI are skipped, not imported).
 export function parseCards(text: string): ParsedCard[] {

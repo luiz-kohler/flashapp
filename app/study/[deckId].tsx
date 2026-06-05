@@ -17,10 +17,10 @@ import { Rating, type ReviewGrade } from '@/lib/fsrs';
 import { DAILY_GOAL, xpForRating } from '@/lib/progress';
 
 const RATINGS: { grade: ReviewGrade; label: string; color: string; rgb: string }[] = [
-  { grade: Rating.Again, label: 'Não sabia', color: '#FF453A', rgb: '255,69,58' },
-  { grade: Rating.Hard, label: 'Difícil', color: '#FFD60A', rgb: '255,214,10' },
-  { grade: Rating.Good, label: 'Bom', color: '#0A84FF', rgb: '10,132,255' },
-  { grade: Rating.Easy, label: 'Fácil', color: '#32D74B', rgb: '50,215,75' },
+  { grade: Rating.Again, label: 'Again', color: '#FF453A', rgb: '255,69,58' },
+  { grade: Rating.Hard, label: 'Hard', color: '#FFD60A', rgb: '255,214,10' },
+  { grade: Rating.Good, label: 'Good', color: '#0A84FF', rgb: '10,132,255' },
+  { grade: Rating.Easy, label: 'Easy', color: '#32D74B', rgb: '50,215,75' },
 ];
 
 export default function StudyScreen() {
@@ -122,24 +122,24 @@ export default function StudyScreen() {
         {done ? (
           <View style={styles.doneWrap}>
             <IconSymbol name="checkmark.circle.fill" size={72} color="#30D158" />
-            <ThemedText style={styles.doneTitle}>Sessão concluída</ThemedText>
+            <ThemedText style={styles.doneTitle}>Session complete</ThemedText>
             <ThemedText style={styles.doneSub}>
-              {reviewed} {reviewed === 1 ? 'card revisado' : 'cards revisados'}
-              {reviewed > 0 ? ` · ${accuracy}% de acerto` : ''}
+              {reviewed} {reviewed === 1 ? 'card reviewed' : 'cards reviewed'}
+              {reviewed > 0 ? ` · ${accuracy}% correct` : ''}
             </ThemedText>
             {sessionXp > 0 && <ThemedText style={styles.doneXp}>+{sessionXp} XP</ThemedText>}
-            {goalMet && <ThemedText style={styles.doneGoal}>Meta diária batida!</ThemedText>}
+            {goalMet && <ThemedText style={styles.doneGoal}>Daily goal hit!</ThemedText>}
             <Pressable
               onPress={() => router.back()}
               style={({ pressed }) => [styles.doneBtn, { opacity: pressed ? 0.8 : 1 }]}>
-              <ThemedText style={styles.doneBtnText}>Voltar</ThemedText>
+              <ThemedText style={styles.doneBtnText}>Back</ThemedText>
             </Pressable>
           </View>
         ) : (
           <View style={styles.center}>
             {/* Glass card */}
             <BlurView tint="systemThickMaterialDark" intensity={55} style={styles.card}>
-              <ThemedText style={[styles.faceLabel, { color: accent }]}>FRENTE</ThemedText>
+              <ThemedText style={[styles.faceLabel, { color: accent }]}>FRONT</ThemedText>
               <RichText text={current.front} style={styles.front} />
               {revealed && (
                 <Animated.View
@@ -153,20 +153,20 @@ export default function StudyScreen() {
                     },
                   ]}>
                   <View style={styles.divider} />
-                  <ThemedText style={[styles.faceLabel, { color: accent }]}>VERSO</ThemedText>
+                  <ThemedText style={[styles.faceLabel, { color: accent }]}>BACK</ThemedText>
                   <RichText text={current.back} style={styles.back} />
                 </Animated.View>
               )}
             </BlurView>
 
             <ThemedText style={styles.stats}>
-              Cartões: {reviewed} · Acertos: {reviewed > 0 ? `${accuracy}%` : '—'}
+              Cards: {reviewed} · Correct: {reviewed > 0 ? `${accuracy}%` : '—'}
             </ThemedText>
 
             {!revealed ? (
               <Pressable onPress={showAnswer} style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}>
                 <BlurView tint="systemThickMaterialDark" intensity={40} style={styles.revealBtn}>
-                  <ThemedText style={styles.revealText}>Revelar resposta</ThemedText>
+                  <ThemedText style={styles.revealText}>Show answer</ThemedText>
                 </BlurView>
               </Pressable>
             ) : (

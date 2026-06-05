@@ -51,7 +51,7 @@ export default function ImportScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
-          <ThemedText style={styles.title}>Importar cards</ThemedText>
+          <ThemedText style={styles.title}>Import cards</ThemedText>
           <Pressable onPress={() => router.back()} hitSlop={12}>
             <IconSymbol name="xmark" size={26} color={colors.textSecondary} />
           </Pressable>
@@ -65,16 +65,16 @@ export default function ImportScreen() {
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}>
           <ThemedText style={[styles.help, { color: colors.textSecondary }]}>
-            Cole o texto com seus cards (um por linha, no formato{'  '}
-            <ThemedText style={[styles.code, { color: colors.text }]}>frente | verso</ThemedText>). Ou
-            copie o prompt, gere com uma IA e cole o resultado aqui.
+            Paste your cards (one per line, formatted as{'  '}
+            <ThemedText style={[styles.code, { color: colors.text }]}>front | back</ThemedText>). Or
+            copy the prompt, generate cards with an AI, and paste the result here.
           </ThemedText>
 
           <Pressable onPress={copyPrompt} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
             <View style={[styles.promptBtn, { borderColor: colors.tint }]}>
               <IconSymbol name="sparkles" size={18} color={colors.tint} />
               <ThemedText style={[styles.promptText, { color: colors.tint }]}>
-                {copied ? 'Prompt copiado! ✓' : 'Copiar prompt da IA'}
+                {copied ? 'Prompt copied! ✓' : 'Copy AI prompt'}
               </ThemedText>
             </View>
           </Pressable>
@@ -85,13 +85,13 @@ export default function ImportScreen() {
             onChangeText={setText}
             multiline
             autoCorrect={false}
-            placeholder={'Capital do Japão | Tóquio\nFunção da mitocôndria | Produzir energia (ATP)'}
+            placeholder={'Capital of Japan | Tokyo\nMitochondrion function | Produce energy (ATP)'}
             placeholderTextColor={colors.textSecondary}
             textAlignVertical="top"
           />
 
           <ThemedText style={[styles.count, { color: colors.textSecondary }]}>
-            {parsed.length} {parsed.length === 1 ? 'card detectado' : 'cards detectados'}
+            {parsed.length} {parsed.length === 1 ? 'card detected' : 'cards detected'}
           </ThemedText>
         </ScrollView>
 
@@ -104,7 +104,7 @@ export default function ImportScreen() {
             { backgroundColor: colors.tint, opacity: parsed.length === 0 ? 0.4 : pressed ? 0.85 : 1 },
           ]}>
           <ThemedText style={styles.addText}>
-            Adicionar {parsed.length} {parsed.length === 1 ? 'card' : 'cards'}
+            Add {parsed.length} {parsed.length === 1 ? 'card' : 'cards'}
           </ThemedText>
         </Pressable>
       </KeyboardAvoidingView>

@@ -87,20 +87,20 @@ const DAY = 86_400_000;
 const t0 = new Date('2026-06-04T09:00:00Z');
 
 // === S1: no hard cap — all due cards; practice includes not-due =============
-console.log('\nS1 — Sessão limitada a 21 + prática (rever todos, sem cap)');
+console.log('\nS1 — Session capped at 21 + practice (review all, no cap)');
 {
   const d = createDeck('Cap');
   for (let i = 0; i < 30; i++) createCard(d.id, `q${i}`, `a${i}`, t0);
-  check('30 devidos → sessão limita a 21', getStudyQueue(d.id, t0).length === 21, `(got ${getStudyQueue(d.id, t0).length})`);
+  check('30 due → session caps at 21', getStudyQueue(d.id, t0).length === 21, `(got ${getStudyQueue(d.id, t0).length})`);
   // Review one as Good so it's no longer due "now".
   review(getDueCards(d.id, t0)[0], Rating.Good, t0);
-  check('Após revisar 1, devidos (getDueCards) = 29', getDueCards(d.id, t0).length === 29, `(got ${getDueCards(d.id, t0).length})`);
-  check('Prática (rever todos) é uncapped (30)', getAllCardsForPractice(d.id, t0).length === 30);
-  check('DAILY_GOAL é 21', DAILY_GOAL === 21);
+  check('After reviewing 1, due (getDueCards) = 29', getDueCards(d.id, t0).length === 29, `(got ${getDueCards(d.id, t0).length})`);
+  check('Practice (review all) is uncapped (30)', getAllCardsForPractice(d.id, t0).length === 30);
+  check('DAILY_GOAL is 21', DAILY_GOAL === 21);
 }
 
 // === S2: ordering — reviews before new, ascending retrievability ===========
-console.log('\nS2 — Utilitário orderForStudy (revisões antes de novos, retrievab. crescente)');
+console.log('\nS2 — orderForStudy utility (reviews before new, ascending retrievability)');
 {
   const d = createDeck('Order');
   const made: Card[] = [];
@@ -116,61 +116,61 @@ console.log('\nS2 — Utilitário orderForStudy (revisões antes de novos, retri
   const states = q.map((c) => c.state);
   const firstNew = states.findIndex((s) => s === State.New);
   const reviewsAfterNew = firstNew !== -1 && states.slice(firstNew).some((s) => s !== State.New);
-  check('Nenhuma revisão aparece depois de um card novo', !reviewsAfterNew, `(states=${states})`);
+  check('No review appears after a new card', !reviewsAfterNew, `(states=${states})`);
 
   const revs = q.filter((c) => c.state !== State.New);
   const rs = revs.map((c) => retrievability(c, tLater));
   const ascending = rs.every((v, i) => i === 0 || v >= rs[i - 1] - 1e-9);
-  check('Revisões ordenadas por retrievabilidade crescente', ascending, `(${rs.map((v) => v.toFixed(2))})`);
+  check('Reviews sorted by ascending retrievability', ascending, `(${rs.map((v) => v.toFixed(2))})`);
 }
 
 // === S3: scheduling responds to answers ====================================
-console.log('\nS3 — Agendamento reage às respostas');
+console.log('\nS3 — Scheduling reacts to answers');
 {
   const d = createDeck('Sched');
-  let c = createCard(d.id, 'Capital do Brasil?', 'Brasília', t0);
-  check('Card novo começa no estado New', c.state === State.New);
+  let c = createCard(d.id, 'Capital of Brazil?', 'Brasília', t0);
+  check('A new card starts in the New state', c.state === State.New);
 
   c = review(c, Rating.Good, t0);
-  check('Após "Bom": due vai para o futuro', c.due.getTime() > t0.getTime());
-  check('Após "Bom": reps incrementa', c.reps === 1, `(reps=${c.reps})`);
+  check('After "Good": due moves to the future', c.due.getTime() > t0.getTime());
+  check('After "Good": reps increments', c.reps === 1, `(reps=${c.reps})`);
 
   const t1 = new Date(t0.getTime() + DAY);
   const stabBefore = c.stability;
   c = review(c, Rating.Good, t1);
-  check('Segundo "Bom": estabilidade aumenta', c.stability > stabBefore, `(${stabBefore.toFixed(2)}→${c.stability.toFixed(2)})`);
+  check('Second "Good": stability increases', c.stability > stabBefore, `(${stabBefore.toFixed(2)}→${c.stability.toFixed(2)})`);
 
   const t2 = new Date(t1.getTime() + DAY);
   const lapsesBefore = c.lapses;
   c = review(c, Rating.Again, t2);
-  check('Após "De novo": lapses aumenta', c.lapses > lapsesBefore, `(${lapsesBefore}→${c.lapses})`);
+  check('After "Again": lapses increase', c.lapses > lapsesBefore, `(${lapsesBefore}→${c.lapses})`);
   const minutesToDue = (c.due.getTime() - t2.getTime()) / 60000;
-  check('Após "De novo": volta logo (≤ 1 dia)', minutesToDue <= 24 * 60, `(${minutesToDue.toFixed(0)} min)`);
+  check('After "Again": comes back soon (≤ 1 day)', minutesToDue <= 24 * 60, `(${minutesToDue.toFixed(0)} min)`);
 }
 
 // === S4: the loop — what you keep missing surfaces first ====================
-console.log('\nS4 — O que você erra vem primeiro na próxima sessão');
+console.log('\nS4 — What you miss surfaces first in the next session');
 {
   const d = createDeck('Loop');
-  createCard(d.id, 'fácil', 'x', t0);
-  createCard(d.id, 'difícil', 'y', t0);
-  // 5 days: always get "fácil" right, always get "difícil" wrong.
+  createCard(d.id, 'easy', 'x', t0);
+  createCard(d.id, 'hard', 'y', t0);
+  // 5 days: always get "easy" right, always get "hard" wrong.
   for (let day = 0; day < 5; day++) {
     const now = new Date(t0.getTime() + day * DAY);
     for (const card of getStudyQueue(d.id, now)) {
-      review(card, card.front === 'fácil' ? Rating.Good : Rating.Again, now);
+      review(card, card.front === 'easy' ? Rating.Good : Rating.Again, now);
     }
   }
   const tFinal = new Date(t0.getTime() + 6 * DAY);
   const due = getStudyQueue(d.id, tFinal);
-  const hasHard = due.some((c) => c.front === 'difícil');
-  const hasEasy = due.some((c) => c.front === 'fácil');
-  check('O card "difícil" (sempre errado) segue devido p/ revisar', hasHard, `(due=${due.map((c) => c.front)})`);
-  check('O card "fácil" (sempre certo) foi agendado p/ o futuro (não devido)', !hasEasy);
+  const hasHard = due.some((c) => c.front === 'hard');
+  const hasEasy = due.some((c) => c.front === 'easy');
+  check('The "hard" card (always wrong) stays due for review', hasHard, `(due=${due.map((c) => c.front)})`);
+  check('The "easy" card (always right) is scheduled for the future (not due)', !hasEasy);
 }
 
 // === S5: gamification (streak / daily goal / XP) — pure logic ===============
-console.log('\nS5 — Gamificação: ofensiva, meta diária e XP');
+console.log('\nS5 — Gamification: streak, daily goal, and XP');
 {
   const today = '2026-06-10';
   const rows = [
@@ -179,10 +179,10 @@ console.log('\nS5 — Gamificação: ofensiva, meta diária e XP');
     { day: '2026-06-10', count: 21 },
   ];
   const p = computeProgress(rows, today);
-  check('Hoje conta 21 reviews', p.today === 21, `(${p.today})`);
-  check('Meta batida (>=21)', p.goalMet === true);
-  check('Ofensiva = 3 dias consecutivos', p.streak === 3, `(${p.streak})`);
-  check('Recorde de ofensiva = 3', p.bestStreak === 3, `(${p.bestStreak})`);
+  check('Today counts 21 reviews', p.today === 21, `(${p.today})`);
+  check('Goal hit (>=21)', p.goalMet === true);
+  check('Streak = 3 consecutive days', p.streak === 3, `(${p.streak})`);
+  check('Best streak = 3', p.bestStreak === 3, `(${p.bestStreak})`);
   const pg = computeProgress(
     [
       { day: '2026-06-01', count: 1 },
@@ -193,50 +193,50 @@ console.log('\nS5 — Gamificação: ofensiva, meta diária e XP');
     ],
     today
   );
-  check('Recorde reflete o maior histórico (4) com ofensiva atual 1', pg.bestStreak === 4 && pg.streak === 1, `(best ${pg.bestStreak}, cur ${pg.streak})`);
+  check('Best streak reflects the longest history (4) while current streak is 1', pg.bestStreak === 4 && pg.streak === 1, `(best ${pg.bestStreak}, cur ${pg.streak})`);
   check('XP = total*10 = 510', p.xp === 510, `(${p.xp})`);
-  check('Nível 3 com 510 XP', p.level === 3, `(${p.level})`);
-  check('Progresso no nível = 110/500 XP', p.xpIntoLevel === 110 && p.xpForNext === 500, `(${p.xpIntoLevel}/${p.xpForNext})`);
+  check('Level 3 at 510 XP', p.level === 3, `(${p.level})`);
+  check('Progress within level = 110/500 XP', p.xpIntoLevel === 110 && p.xpForNext === 500, `(${p.xpIntoLevel}/${p.xpForNext})`);
   check(
-    'xpForRating: Fácil(15) > Bom(10) > Difícil(6) > De novo(2)',
+    'xpForRating: Easy(15) > Good(10) > Hard(6) > Again(2)',
     xpForRating(4) === 15 && xpForRating(3) === 10 && xpForRating(2) === 6 && xpForRating(1) === 2
   );
   const pxp = computeProgress(rows, today, 1000);
-  check('computeProgress usa o totalXp passado (1000) → nível 4', pxp.xp === 1000 && pxp.level === 4, `(xp ${pxp.xp}, lvl ${pxp.level})`);
-  check('Últimos 7 dias = 7 colunas terminando em hoje', p.last7.length === 7 && p.last7[6].day === today);
+  check('computeProgress uses the passed totalXp (1000) → level 4', pxp.xp === 1000 && pxp.level === 4, `(xp ${pxp.xp}, lvl ${pxp.level})`);
+  check('Last 7 days = 7 columns ending today', p.last7.length === 7 && p.last7[6].day === today);
 
   // No review today + a gap → streak counts only yesterday.
   const p2 = computeProgress([{ day: '2026-06-09', count: 3 }, { day: '2026-06-07', count: 2 }], today);
-  check('Sem review hoje: ofensiva conta a partir de ontem (=1)', p2.streak === 1, `(${p2.streak})`);
-  check('Meta não batida quando hoje=0', p2.goalMet === false && p2.today === 0);
+  check('No review today: streak counts from yesterday (=1)', p2.streak === 1, `(${p2.streak})`);
+  check('Goal not hit when today=0', p2.goalMet === false && p2.today === 0);
 
   // Empty history → all zeros.
   const p3 = computeProgress([], today);
-  check('Histórico vazio → ofensiva 0, hoje 0, xp 0', p3.streak === 0 && p3.today === 0 && p3.xp === 0);
+  check('Empty history → streak 0, today 0, xp 0', p3.streak === 0 && p3.today === 0 && p3.xp === 0);
 
-  check('localDay formata YYYY-MM-DD', localDay(new Date('2026-06-04T09:00:00')) === '2026-06-04');
+  check('localDay formats YYYY-MM-DD', localDay(new Date('2026-06-04T09:00:00')) === '2026-06-04');
 }
 
 // === S6: bulk import parser =================================================
-console.log('\nS6 — Parser de importação (texto colado → cards)');
+console.log('\nS6 — Bulk import parser (pasted text → cards)');
 {
   const text = [
-    'Capital do Japão | Tóquio',
-    '- Função da mitocôndria | Produzir energia (ATP)',
-    '1. Quem escreveu Dom Casmurro | Machado de Assis',
+    'Capital of Japan | Tokyo',
+    '- Mitochondrion function | Produce energy (ATP)',
+    '1. Who wrote Hamlet | William Shakespeare',
     '',
-    'linha de prosa sem separador deve ser ignorada',
+    'a prose line without a separator should be ignored',
     '   |   ',
   ].join('\n');
   const parsed = parseCards(text);
-  check('Pega 3 cards (ignora prosa e linhas vazias)', parsed.length === 3, `(${parsed.length})`);
-  check('Remove marcador "- "', parsed[1].front === 'Função da mitocôndria');
-  check('Remove numeração "1. "', parsed[2].front === 'Quem escreveu Dom Casmurro');
-  check('Frente/verso corretos', parsed[0].front === 'Capital do Japão' && parsed[0].back === 'Tóquio');
+  check('Picks up 3 cards (ignores prose and empty lines)', parsed.length === 3, `(${parsed.length})`);
+  check('Strips "- " bullet marker', parsed[1].front === 'Mitochondrion function');
+  check('Strips "1. " numbering', parsed[2].front === 'Who wrote Hamlet');
+  check('Front/back parsed correctly', parsed[0].front === 'Capital of Japan' && parsed[0].back === 'Tokyo');
 }
 
 // === S8: weekly chart (since the beginning) =================================
-console.log('\nS8 — Gráfico semanal (desde o início)');
+console.log('\nS8 — Weekly chart (since the beginning)');
 {
   const today = '2026-06-10';
   const rows = [
@@ -245,11 +245,11 @@ console.log('\nS8 — Gráfico semanal (desde o início)');
     { day: '2026-05-28', count: 5 }, // ~2 weeks ago
   ];
   const wk = weeklyCounts(rows, today, 8);
-  check('8 colunas semanais', wk.length === 8, `(${wk.length})`);
-  check('Semana atual soma 10', wk[7].count === 10, `(${wk[7].count})`);
-  check('Semana de 2 semanas atrás soma 5', wk[6].count === 5, `(${wk[6].count})`);
-  check('Total semanal = 15', wk.reduce((s, w) => s + w.count, 0) === 15);
+  check('8 weekly columns', wk.length === 8, `(${wk.length})`);
+  check('Current week sums to 10', wk[7].count === 10, `(${wk[7].count})`);
+  check('Two weeks ago sums to 5', wk[6].count === 5, `(${wk[6].count})`);
+  check('Weekly total = 15', wk.reduce((s, w) => s + w.count, 0) === 15);
 }
 
-console.log(`\n==== ${pass} passaram, ${fail} falharam ====`);
+console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail === 0 ? 0 : 1);

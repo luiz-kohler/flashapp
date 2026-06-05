@@ -44,7 +44,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="explore"
         options={{
-          title: 'Progresso',
+          title: 'Progress',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
         }}
       />

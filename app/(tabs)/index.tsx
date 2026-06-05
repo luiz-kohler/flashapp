@@ -22,11 +22,11 @@ export default function DecksScreen() {
   const refresh = useCallback(() => setDecks(decksWithCounts().all()), []);
   useFocusEffect(useCallback(() => refresh(), [refresh]));
 
-  // Hold a deck → native action sheet with options (currently Excluir).
+  // Hold a deck → native action sheet with options (currently Delete).
   function showDeckMenu(item: { id: number; name: string }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     ActionSheetIOS.showActionSheetWithOptions(
-      { title: item.name, options: ['Cancelar', 'Excluir deck'], destructiveButtonIndex: 1, cancelButtonIndex: 0 },
+      { title: item.name, options: ['Cancel', 'Delete deck'], destructiveButtonIndex: 1, cancelButtonIndex: 0 },
       (i) => {
         if (i === 1) {
           deleteDeck(item.id);
@@ -37,7 +37,7 @@ export default function DecksScreen() {
   }
 
   function handleAddDeck() {
-    Alert.prompt('Novo deck', 'Como vai se chamar?', (name) => {
+    Alert.prompt('New deck', 'What should it be called?', (name) => {
       const trimmed = name?.trim();
       if (trimmed) {
         createDeck(trimmed);
@@ -73,7 +73,7 @@ export default function DecksScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <ThemedText style={[styles.empty, { color: colors.textSecondary }]}>
-              Nenhum deck ainda.{'\n'}Toque em ＋ para criar o primeiro.
+              No decks yet.{'\n'}Tap ＋ to create your first one.
             </ThemedText>
           }
           renderItem={({ item }) => (
@@ -97,7 +97,7 @@ export default function DecksScreen() {
                 <View style={styles.deckInfo}>
                   <ThemedText style={styles.deckName}>{item.name}</ThemedText>
                   <ThemedText style={[styles.deckMeta, { color: colors.textSecondary }]}>
-                    {item.due > 0 ? `${item.due} para revisar · ` : ''}
+                    {item.due > 0 ? `${item.due} due · ` : ''}
                     {item.total} {item.total === 1 ? 'card' : 'cards'}
                   </ThemedText>
                 </View>

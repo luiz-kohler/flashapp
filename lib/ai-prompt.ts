@@ -1,22 +1,22 @@
 // The prompt the user copies into another AI. The AI's output is pasted back
-// into the import screen and parsed by parseCards (one card per line, "frente | verso").
-export const CARD_PROMPT = `Você é um gerador de flashcards para repetição espaçada. Vou te dar um TEXTO. Gere flashcards atômicos a partir dele.
+// into the import screen and parsed by parseCards (one card per line, "front | back").
+export const CARD_PROMPT = `You are a flashcard generator for spaced repetition. I will give you a TEXT. Generate atomic flashcards from it.
 
-REGRAS DE SAÍDA (siga à risca):
-- Um flashcard por linha, no formato EXATO: frente | verso
-- Use o caractere | (barra vertical) para separar a frente do verso.
-- NÃO numere, NÃO use marcadores, NÃO use markdown, NÃO escreva títulos nem nenhum texto fora das linhas de card.
-- A frente é uma pergunta ou conceito curto; o verso é a resposta, o mais conciso possível (palavras-chave, não frases longas).
-- Atômico: cada card cobre UM único fato. Quebre ideias compostas em vários cards.
-- Escreva na mesma língua do texto. Evite cards ambíguos ou redundantes.
-- Gere quantos cards o texto permitir (de 1 a dezenas).
+OUTPUT RULES (follow strictly):
+- One flashcard per line, in the EXACT format: front | back
+- Use the | (vertical bar) character to separate the front from the back.
+- DO NOT number, DO NOT use bullet points, DO NOT use markdown, DO NOT write titles or any text outside of the card lines.
+- The front is a short question or concept; the back is the answer, as concise as possible (keywords, not long sentences).
+- Atomic: each card covers ONE single fact. Break compound ideas into multiple cards.
+- Write in the same language as the text. Avoid ambiguous or redundant cards.
+- Generate as many cards as the text allows (from 1 to dozens).
 
-EXEMPLO de saída válida:
-Capital do Japão | Tóquio
-Quem escreveu Dom Casmurro | Machado de Assis
-Função da mitocôndria | Produzir energia (ATP) da célula
+EXAMPLE of valid output:
+Capital of Japan | Tokyo
+Who wrote Hamlet | William Shakespeare
+Function of the mitochondrion | Produce the cell's energy (ATP)
 
-TEXTO:
+TEXT:
 """
-<cole aqui o texto que você quer transformar em cards>
+<paste here the text you want to turn into cards>
 """`;

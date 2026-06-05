@@ -27,11 +27,11 @@ export default function DeckScreen() {
   const [deck, setDeck] = useState(() => getDeck(deckId));
   const [cards, setCards] = useState<Card[]>(() => cardsInDeck(deckId).all());
   const [pickerOpen, setPickerOpen] = useState(false);
-  // Card selecionado para preview (tap simples). Null = preview fechado.
+  // Card selected for preview (single tap). Null = preview closed.
   const [previewCard, setPreviewCard] = useState<Card | null>(null);
-  // Sort para a lista "Todos os cards". 'recent' = criados mais recentes primeiro
-  // (default, igual lista de músicas curtidas do Spotify), 'shuffle' = ordem aleatória.
-  // shuffleSeed permite re-embaralhar quando o usuário toca de novo no ícone de shuffle.
+  // Sort mode for the "All cards" list. 'recent' = newest first (default, like
+  // Spotify's liked-songs list), 'shuffle' = random order. shuffleSeed lets the
+  // user re-shuffle by tapping the shuffle icon again.
   const [sortMode, setSortMode] = useState<'recent' | 'shuffle'>('recent');
   const [shuffleSeed, setShuffleSeed] = useState(0);
 
@@ -55,9 +55,9 @@ export default function DeckScreen() {
   const all = cards;
   const dueCount = all.filter((c) => c.due.getTime() <= now).length;
 
-  // Ordena a lista visível conforme o sortMode. Em 'shuffle' usamos um
-  // Fisher–Yates determinístico por shuffleSeed pra ordem ficar estável entre
-  // re-renders (até o usuário tocar de novo no ícone, que troca o seed).
+  // Sort the visible list according to sortMode. In 'shuffle' we use a
+  // Fisher–Yates seeded by shuffleSeed so the order stays stable between
+  // re-renders (until the user taps the icon again, which changes the seed).
   const sortedCards = useMemo(() => {
     if (sortMode === 'recent') {
       return [...cards].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -78,7 +78,7 @@ export default function DeckScreen() {
   function toggleShuffle() {
     Haptics.selectionAsync();
     if (sortMode === 'shuffle') {
-      setShuffleSeed((s) => s + 1); // já em shuffle: re-embaralha
+      setShuffleSeed((s) => s + 1); // already shuffled: re-shuffle
     } else {
       setSortMode('shuffle');
       setShuffleSeed(Date.now());
@@ -95,8 +95,8 @@ export default function DeckScreen() {
 
   function startStudy() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Sem cards devidos → cai em modo prática (revisa todos sem afetar FSRS).
-    // Assim o botão de play funciona sempre, igual o play do Spotify.
+    // No due cards → fall back to practice mode (review all without affecting FSRS),
+    // so the play button always works, like Spotify's play.
     const practice = dueCount === 0 && all.length > 0 ? '1' : undefined;
     router.push({ pathname: '/study/[deckId]', params: { deckId: String(deckId), practice } });
   }
@@ -105,11 +105,11 @@ export default function DeckScreen() {
     router.push({ pathname: '/import/[deckId]', params: { deckId: String(deckId) } });
   }
 
-  // Hold a card → native action sheet with options (currently Excluir).
+  // Hold a card → native action sheet with options (currently Delete).
   function showCardMenu(card: Card) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     ActionSheetIOS.showActionSheetWithOptions(
-      { title: card.front, options: ['Cancelar', 'Excluir card'], destructiveButtonIndex: 1, cancelButtonIndex: 0 },
+      { title: card.front, options: ['Cancel', 'Delete card'], destructiveButtonIndex: 1, cancelButtonIndex: 0 },
       (i) => {
         if (i === 1) {
           deleteCard(card.id);
@@ -120,9 +120,9 @@ export default function DeckScreen() {
   }
 
   function statusFor(state: number, due: number): { label: string; color: string } {
-    if (state === State.New) return { label: 'Novo', color: colors.tint };
-    if (due <= now) return { label: 'Revisar', color: accent };
-    return { label: 'Em dia', color: colors.textSecondary };
+    if (state === State.New) return { label: 'New', color: colors.tint };
+    if (due <= now) return { label: 'Due', color: accent };
+    return { label: 'Learned', color: colors.textSecondary };
   }
 
   const bg: [string, string] =
@@ -160,13 +160,13 @@ export default function DeckScreen() {
           </Pressable>
           <ThemedText style={styles.title}>{deck?.name ?? 'Deck'}</ThemedText>
           <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {all.length} cards · {dueCount} para revisar
+            {all.length} cards · {dueCount} due
           </ThemedText>
         </View>
 
-        {/* Primary CTA — botão de play redondo, só ícone, estilo Spotify.
-            Sempre visível: com cards devidos abre a sessão normal; sem devidos,
-            startStudy() cai em modo prática. */}
+        {/* Primary CTA — round icon-only play button, Spotify style. Always
+            visible: with due cards it starts a normal session; with none,
+            startStudy() falls back to practice mode. */}
         <Pressable
           onPress={startStudy}
           hitSlop={12}
@@ -176,9 +176,9 @@ export default function DeckScreen() {
 
         <View style={styles.sectionHeader}>
           <ThemedText style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-            TODOS OS CARDS
+            ALL CARDS
           </ThemedText>
-          {/* Sort: só ícones, estilo Spotify (o ativo acende na cor de destaque). */}
+          {/* Sort: icon-only, Spotify style (the active one lights up in the accent color). */}
           <View style={styles.sortRow}>
             <Pressable onPress={pickRecent} hitSlop={10} style={styles.sortBtn}>
               <IconSymbol
@@ -204,7 +204,7 @@ export default function DeckScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <ThemedText style={[styles.empty, { color: colors.textSecondary }]}>
-              Nenhum card ainda. Toque em ＋ para adicionar.
+              No cards yet. Tap ＋ to add one.
             </ThemedText>
           }
           renderItem={({ item }) => {
@@ -249,7 +249,7 @@ export default function DeckScreen() {
           onRequestClose={() => setPickerOpen(false)}>
           <Pressable style={styles.modalOverlay} onPress={() => setPickerOpen(false)}>
             <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
-              <ThemedText style={styles.modalTitle}>Escolha um ícone</ThemedText>
+              <ThemedText style={styles.modalTitle}>Choose an icon</ThemedText>
               <View style={styles.emojiGrid}>
                 {EMOJIS.map((e) => (
                   <Pressable key={e} onPress={() => pickEmoji(e)} style={styles.emojiCell}>
@@ -261,9 +261,9 @@ export default function DeckScreen() {
           </Pressable>
         </Modal>
 
-        {/* Preview do card (tap simples na linha). Mostra frente e verso
-            completos sem mexer no agendamento FSRS — é só leitura. Tocar
-            em qualquer lugar fora ou no próprio card fecha. */}
+        {/* Card preview (single tap on a row). Shows the full front and back
+            without touching FSRS scheduling — read-only. Tapping anywhere
+            outside or on the card itself closes it. */}
         <Modal
           visible={previewCard !== null}
           transparent
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    // Sombra leve pra dar o pop do botão de play do Spotify.
+    // Subtle shadow to give the Spotify-style play button its pop.
     shadowColor: '#000',
     shadowOpacity: 0.25,
     shadowRadius: 10,

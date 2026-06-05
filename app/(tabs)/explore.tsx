@@ -11,7 +11,7 @@ import { dailyReviewCounts, getTotalXp } from '@/db/queries';
 import { computeProgress, localDay, MOTIVATION, weeklyCounts } from '@/lib/progress';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']; // Dom..Sáb
+const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']; // Sun..Sat
 
 export default function ProgressScreen() {
   const scheme = useColorScheme() ?? 'light';
@@ -41,7 +41,7 @@ export default function ProgressScreen() {
       <LinearGradient colors={bg} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <ThemedText style={styles.title}>Progresso</ThemedText>
+          <ThemedText style={styles.title}>Progress</ThemedText>
 
           {/* Streak + record */}
           <GlassSurface radius={22} style={styles.streakCard}>
@@ -49,7 +49,7 @@ export default function ProgressScreen() {
             <View style={styles.flex1}>
               <ThemedText style={styles.streakNum}>{p.streak}</ThemedText>
               <ThemedText style={[styles.streakLabel, { color: colors.textSecondary }]}>
-                {p.streak === 1 ? 'dia de ofensiva' : 'dias de ofensiva'}
+                day streak
               </ThemedText>
             </View>
             <View style={styles.recordBox}>
@@ -61,14 +61,14 @@ export default function ProgressScreen() {
                 ]}>
                 {p.bestStreak}
               </ThemedText>
-              <ThemedText style={[styles.recordLabel, { color: colors.textSecondary }]}>recorde</ThemedText>
+              <ThemedText style={[styles.recordLabel, { color: colors.textSecondary }]}>best</ThemedText>
             </View>
           </GlassSurface>
 
           {/* Daily goal */}
           <GlassSurface radius={22} style={styles.card}>
             <View style={styles.rowBetween}>
-              <ThemedText style={styles.cardTitle}>Meta de hoje</ThemedText>
+              <ThemedText style={styles.cardTitle}>Today&apos;s goal</ThemedText>
               <ThemedText style={[styles.cardTitle, { color: p.goalMet ? '#32D74B' : colors.text }]}>
                 {p.today}/{p.goal}
               </ThemedText>
@@ -82,14 +82,14 @@ export default function ProgressScreen() {
               />
             </View>
             <ThemedText style={[styles.cardSub, { color: colors.textSecondary }]}>
-              {p.goalMet ? 'Meta batida! 🎯' : `Faltam ${p.goal - p.today} para a meta de hoje`}
+              {p.goalMet ? 'Goal hit! 🎯' : `${p.goal - p.today} to go for today's goal`}
             </ThemedText>
           </GlassSurface>
 
           {/* Level + next-level progress */}
           <GlassSurface radius={22} style={styles.card}>
             <View style={styles.rowBetween}>
-              <ThemedText style={styles.cardTitle}>Nível {p.level}</ThemedText>
+              <ThemedText style={styles.cardTitle}>Level {p.level}</ThemedText>
               <ThemedText style={[styles.cardSub, { color: colors.textSecondary }]}>
                 {p.xpIntoLevel}/{p.xpForNext} XP
               </ThemedText>
@@ -104,13 +104,13 @@ export default function ProgressScreen() {
             </View>
             <ThemedText style={[styles.levelMsg, { color: colors.tint }]}>{message}</ThemedText>
             <ThemedText style={[styles.cardSub, { color: colors.textSecondary }]}>
-              {p.totalReviews} {p.totalReviews === 1 ? 'revisão' : 'revisões'} no total
+              {p.totalReviews} {p.totalReviews === 1 ? 'review' : 'reviews'} total
             </ThemedText>
           </GlassSurface>
 
           {/* Last 7 days */}
           <GlassSurface radius={22} style={styles.card}>
-            <ThemedText style={styles.cardTitle}>Últimos 7 dias</ThemedText>
+            <ThemedText style={styles.cardTitle}>Last 7 days</ThemedText>
             <View style={styles.chart}>
               {p.last7.map((d) => {
                 const isToday = d.day === today;
@@ -136,7 +136,7 @@ export default function ProgressScreen() {
 
           {/* Since the beginning (weekly totals) */}
           <GlassSurface radius={22} style={styles.card}>
-            <ThemedText style={styles.cardTitle}>Desde o início</ThemedText>
+            <ThemedText style={styles.cardTitle}>Since you started</ThemedText>
             <View style={styles.chart}>
               {weekly.map((d, i) => {
                 const isCurrent = i === weekly.length - 1;

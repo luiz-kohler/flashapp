@@ -125,14 +125,14 @@ export function weeklyCounts(rows: DailyCount[], today: string, weeks = 8): Dail
   return out;
 }
 
-// Rotating motivational lines shown under the level on the Progresso tab.
+// Rotating motivational lines shown under the level on the Progress tab.
 export const MOTIVATION = [
-  'Cada revisão te leva mais perto do próximo nível 🚀',
-  'Constância vence intensidade — só mais alguns hoje!',
-  'Seu cérebro adora repetição espaçada. Bora! 🧠',
-  'Faltam poucos XP pro próximo nível — você consegue!',
-  'Pequenos passos diários viram grande progresso 📈',
-  'Revisar agora é lembrar amanhã ✨',
-  'Mantém o ritmo: o próximo nível está logo ali!',
-  'Disciplina hoje, conhecimento pra sempre 💪',
+  'Every review brings you closer to the next level 🚀',
+  'Consistency beats intensity — just a few more today!',
+  'Your brain loves spaced repetition. Let’s go! 🧠',
+  'A bit more XP and you level up — you got this!',
+  'Small daily steps add up to big progress 📈',
+  'Review today, remember tomorrow ✨',
+  'Keep the rhythm: the next level is right there!',
+  'Discipline today, knowledge forever 💪',
 ];
