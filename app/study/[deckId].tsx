@@ -129,14 +129,14 @@ export default function StudyScreen() {
 
         {done ? (
           <View style={styles.doneWrap}>
-            <IconSymbol name="checkmark.circle.fill" size={72} color={accent} />
+            <IconSymbol name="checkmark.circle.fill" size={72} color="#30D158" />
             <ThemedText style={styles.doneTitle}>Sessão concluída</ThemedText>
             <ThemedText style={styles.doneSub}>
               {reviewed} {reviewed === 1 ? 'card revisado' : 'cards revisados'}
               {reviewed > 0 ? ` · ${accuracy}% de acerto` : ''}
             </ThemedText>
             {sessionXp > 0 && <ThemedText style={styles.doneXp}>+{sessionXp} XP</ThemedText>}
-            {goalMet && <ThemedText style={styles.doneGoal}>Meta diária batida! 🎯</ThemedText>}
+            {goalMet && <ThemedText style={styles.doneGoal}>Meta diária batida!</ThemedText>}
             <Pressable
               onPress={() => router.back()}
               style={({ pressed }) => [styles.doneBtn, { opacity: pressed ? 0.8 : 1 }]}>
@@ -278,8 +278,8 @@ const styles = StyleSheet.create({
   doneWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two },
   doneTitle: { color: '#fff', fontSize: 26, fontWeight: '700', marginTop: Spacing.two },
   doneSub: { color: 'rgba(255,255,255,0.85)', fontSize: 16, textAlign: 'center' },
-  doneGoal: { color: '#FFD60A', fontSize: 16, fontWeight: '700', marginTop: Spacing.one },
-  doneXp: { color: '#FFD60A', fontSize: 20, fontWeight: '800', marginTop: Spacing.one },
+  doneGoal: { color: Colors.dark.tint, fontSize: 16, fontWeight: '700', marginTop: Spacing.one },
+  doneXp: { color: Colors.dark.tint, fontSize: 20, fontWeight: '800', marginTop: Spacing.one },
   doneBtn: {
     marginTop: Spacing.four,
     backgroundColor: '#fff',
