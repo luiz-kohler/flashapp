@@ -2,16 +2,17 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GlassSurface } from '@/components/glass-surface';
+import { RichText } from '@/components/rich-text';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, Spacing } from '@/constants/theme';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
-import { cardsInDeck, createCard, deleteCard, getDeck, updateDeck } from '@/db/queries';
+import { cardsInDeck, deleteCard, getDeck, updateDeck } from '@/db/queries';
 import type { Card } from '@/db/schema';
 import { EMOJIS } from '@/lib/emojis';
 import { State } from '@/lib/fsrs';
@@ -48,18 +49,7 @@ export default function DeckScreen() {
   const dueCount = all.filter((c) => c.due.getTime() <= now).length;
 
   function handleAddCard() {
-    Alert.prompt('Novo card', 'Frente (pergunta)', (front) => {
-      const f = front?.trim();
-      if (!f) return;
-      Alert.prompt('Verso (resposta)', undefined, (back) => {
-        const b = back?.trim();
-        if (b) {
-          createCard(deckId, f, b);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          refresh();
-        }
-      });
-    });
+    router.push({ pathname: '/new-card/[deckId]', params: { deckId: String(deckId) } });
   }
 
   function startStudy(practice = false) {
@@ -169,14 +159,16 @@ export default function DeckScreen() {
                 <SwipeToDelete onConfirm={() => { deleteCard(item.id); refresh(); }}>
                   <GlassSurface radius={16} style={styles.cardRow}>
                 <View style={styles.cardText}>
-                  <ThemedText style={styles.cardFront} numberOfLines={1}>
-                    {item.front}
-                  </ThemedText>
-                  <ThemedText
+                  <RichText
+                    text={item.front}
+                    style={[styles.cardFront, { color: colors.text }]}
+                    numberOfLines={1}
+                  />
+                  <RichText
+                    text={item.back}
                     style={[styles.cardBack, { color: colors.textSecondary }]}
-                    numberOfLines={1}>
-                    {item.back}
-                  </ThemedText>
+                    numberOfLines={1}
+                  />
                 </View>
                 <View style={[styles.pill, { backgroundColor: status.color + '22' }]}>
                   <ThemedText style={[styles.pillText, { color: status.color }]}>

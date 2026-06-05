@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { RichText } from '@/components/rich-text';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, Spacing } from '@/constants/theme';
@@ -144,7 +145,7 @@ export default function StudyScreen() {
             {/* Glass card */}
             <BlurView tint="systemThickMaterialDark" intensity={55} style={styles.card}>
               <ThemedText style={[styles.faceLabel, { color: accent }]}>FRENTE</ThemedText>
-              <ThemedText style={styles.front}>{current.front}</ThemedText>
+              <RichText text={current.front} style={styles.front} />
               {revealed && (
                 <Animated.View
                   style={[
@@ -158,7 +159,7 @@ export default function StudyScreen() {
                   ]}>
                   <View style={styles.divider} />
                   <ThemedText style={[styles.faceLabel, { color: accent }]}>VERSO</ThemedText>
-                  <ThemedText style={styles.back}>{current.back}</ThemedText>
+                  <RichText text={current.back} style={styles.back} />
                 </Animated.View>
               )}
             </BlurView>

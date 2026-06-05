@@ -23,6 +23,7 @@ export default function RootLayout() {
           <Stack.Screen name="deck/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="study/[deckId]" options={{ headerShown: false }} />
           <Stack.Screen name="import/[deckId]" options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="new-card/[deckId]" options={{ presentation: 'modal', headerShown: false }} />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>
