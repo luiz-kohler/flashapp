@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { RichText } from '@/components/rich-text';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, Spacing } from '@/constants/theme';
@@ -85,6 +86,14 @@ export default function NewCardScreen() {
           placeholderTextColor={colors.textSecondary}
           textAlignVertical="top"
         />
+        {value.includes('**') && (
+          <View style={[styles.preview, { backgroundColor: colors.surface }]}>
+            <ThemedText style={[styles.previewLabel, { color: colors.textSecondary }]}>
+              PREVIEW
+            </ThemedText>
+            <RichText text={value} style={{ color: colors.text, fontSize: 17, lineHeight: 23 }} />
+          </View>
+        )}
       </>
     );
   }
@@ -148,6 +157,12 @@ const styles = StyleSheet.create({
   boldBtn: { width: 34, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   boldText: { fontSize: 16, fontWeight: '800' },
   input: { minHeight: 96, borderRadius: 16, padding: Spacing.three, fontSize: 17, lineHeight: 23 },
+  preview: {
+    marginTop: Spacing.one,
+    borderRadius: 16,
+    padding: Spacing.three,
+  },
+  previewLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 6 },
   saveBtn: {
     height: 54,
     borderRadius: 16,
