@@ -54,12 +54,9 @@ export default function DeckScreen() {
     router.push({ pathname: '/new-card/[deckId]', params: { deckId: String(deckId) } });
   }
 
-  function startStudy(practice = false) {
+  function startStudy() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push({
-      pathname: '/study/[deckId]',
-      params: { deckId: String(deckId), ...(practice ? { practice: '1' } : {}) },
-    });
+    router.push({ pathname: '/study/[deckId]', params: { deckId: String(deckId) } });
   }
 
   function openImport() {
@@ -128,11 +125,11 @@ export default function DeckScreen() {
         {/* Primary CTA */}
         {dueCount > 0 ? (
           <Pressable
-            onPress={() => startStudy(false)}
-            style={({ pressed }) => [styles.cta, { backgroundColor: accent, opacity: pressed ? 0.85 : 1 }]}>
+            onPress={startStudy}
+            style={({ pressed }) => [styles.cta, { backgroundColor: colors.tint, opacity: pressed ? 0.85 : 1 }]}>
             <IconSymbol name="play.fill" size={20} color="#fff" />
             <ThemedText style={styles.ctaText}>
-              Estudar {sessionCount} {sessionCount === 1 ? 'card' : 'cards'}
+              Bora! {sessionCount} {sessionCount === 1 ? 'card' : 'cards'}
             </ThemedText>
           </Pressable>
         ) : (
@@ -141,17 +138,6 @@ export default function DeckScreen() {
               Tudo em dia 🎉
             </ThemedText>
           </View>
-        )}
-
-        {/* Practice — review freely, as many times as you want */}
-        {all.length > 0 && (
-          <Pressable onPress={() => startStudy(true)} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
-            <GlassSurface radius={14} style={styles.practiceBtn}>
-              <ThemedText style={[styles.practiceText, { color: colors.text }]}>
-                Rever todos os cards
-              </ThemedText>
-            </GlassSurface>
-          </Pressable>
         )}
 
         <ThemedText style={[styles.sectionLabel, { color: colors.textSecondary }]}>
@@ -245,8 +231,6 @@ const styles = StyleSheet.create({
   },
   ctaDone: { backgroundColor: 'transparent', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(128,128,128,0.3)' },
   ctaText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  practiceBtn: { height: 46, alignItems: 'center', justifyContent: 'center', marginTop: Spacing.two },
-  practiceText: { fontSize: 15, fontWeight: '600' },
   sectionLabel: {
     fontSize: 12,
     fontWeight: '600',
