@@ -135,6 +135,19 @@ export function createCard(deckId: number, front: string, back: string) {
   return db.insert(cards).values({ deckId, front, back, ...state }).returning().get();
 }
 
+// Fetch one card by id (for the edit screen). Returns undefined if missing
+// (e.g. user deleted it from another route).
+export function getCard(id: number) {
+  return db.select().from(cards).where(eq(cards.id, id)).get();
+}
+
+// Edit a card's content. Only the user-visible text changes — FSRS state
+// (due/stability/etc) is intentionally left untouched, so editing a typo
+// doesn't reset the scheduling history.
+export function updateCard(id: number, fields: { front?: string; back?: string }) {
+  db.update(cards).set(fields).where(eq(cards.id, id)).run();
+}
+
 // Cards in a deck that are due now, soonest first — the study queue.
 export function getDueCards(deckId: number): Card[] {
   return db

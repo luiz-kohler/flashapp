@@ -118,13 +118,22 @@ export default function DeckScreen() {
     router.push({ pathname: '/import/[deckId]', params: { deckId: String(deckId) } });
   }
 
-  // Hold a card → native action sheet with options (currently Delete).
+  // Hold a card → native action sheet: edit (front/back) or delete. We push
+  // the edit screen instead of using Alert.prompt because card content can be
+  // multi-line / rich, and Alert.prompt is single-line only.
   function showCardMenu(card: Card) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     ActionSheetIOS.showActionSheetWithOptions(
-      { title: card.front, options: ['Cancel', 'Delete card'], destructiveButtonIndex: 1, cancelButtonIndex: 0 },
+      {
+        title: card.front,
+        options: ['Cancel', 'Edit card', 'Delete card'],
+        destructiveButtonIndex: 2,
+        cancelButtonIndex: 0,
+      },
       (i) => {
         if (i === 1) {
+          router.push({ pathname: '/edit-card/[id]', params: { id: String(card.id) } });
+        } else if (i === 2) {
           deleteCard(card.id);
           refresh();
         }

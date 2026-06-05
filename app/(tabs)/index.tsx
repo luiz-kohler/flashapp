@@ -10,7 +10,7 @@ import { GlassSurface } from '@/components/glass-surface';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
 import { ThemedText } from '@/components/themed-text';
 import { Colors, Spacing } from '@/constants/theme';
-import { createDeck, decksWithCounts, deleteDeck } from '@/db/queries';
+import { createDeck, decksWithCounts, deleteDeck, updateDeck } from '@/db/queries';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function DecksScreen() {
@@ -22,13 +22,35 @@ export default function DecksScreen() {
   const refresh = useCallback(() => setDecks(decksWithCounts().all()), []);
   useFocusEffect(useCallback(() => refresh(), [refresh]));
 
-  // Hold a deck → native action sheet with options (currently Delete).
+  // Hold a deck → native action sheet: rename or delete. Rename uses
+  // Alert.prompt (the same primitive as deck creation) since the only editable
+  // field is a one-line name — no need for a full screen.
   function showDeckMenu(item: { id: number; name: string }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     ActionSheetIOS.showActionSheetWithOptions(
-      { title: item.name, options: ['Cancel', 'Delete deck'], destructiveButtonIndex: 1, cancelButtonIndex: 0 },
+      {
+        title: item.name,
+        options: ['Cancel', 'Edit name', 'Delete deck'],
+        destructiveButtonIndex: 2,
+        cancelButtonIndex: 0,
+      },
       (i) => {
         if (i === 1) {
+          Alert.prompt(
+            'Rename deck',
+            undefined,
+            (name) => {
+              const trimmed = name?.trim();
+              if (trimmed && trimmed !== item.name) {
+                updateDeck(item.id, { name: trimmed });
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                refresh();
+              }
+            },
+            'plain-text',
+            item.name
+          );
+        } else if (i === 2) {
           deleteDeck(item.id);
           refresh();
         }
