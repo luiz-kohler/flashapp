@@ -16,11 +16,11 @@ import type { Card } from '@/db/schema';
 import { Rating, type ReviewGrade } from '@/lib/fsrs';
 import { DAILY_GOAL, xpForRating } from '@/lib/progress';
 
-const RATINGS: { grade: ReviewGrade; label: string; color: string }[] = [
-  { grade: Rating.Again, label: 'Não sabia', color: '#FF453A' },
-  { grade: Rating.Hard, label: 'Difícil', color: '#FFD60A' },
-  { grade: Rating.Good, label: 'Bom', color: '#0A84FF' },
-  { grade: Rating.Easy, label: 'Fácil', color: '#32D74B' },
+const RATINGS: { grade: ReviewGrade; label: string; color: string; rgb: string }[] = [
+  { grade: Rating.Again, label: 'Não sabia', color: '#FF453A', rgb: '255,69,58' },
+  { grade: Rating.Hard, label: 'Difícil', color: '#FFD60A', rgb: '255,214,10' },
+  { grade: Rating.Good, label: 'Bom', color: '#0A84FF', rgb: '10,132,255' },
+  { grade: Rating.Easy, label: 'Fácil', color: '#32D74B', rgb: '50,215,75' },
 ];
 
 export default function StudyScreen() {
@@ -66,7 +66,6 @@ export default function StudyScreen() {
 
   const current = queue[pos];
   const done = !current;
-  const remaining = queue.length - pos;
   const goalToday = baseToday + reviewed;
   const goalMet = goalToday >= DAILY_GOAL;
   const accuracy = reviewed > 0 ? Math.round((correct / reviewed) * 100) : 0;
@@ -112,17 +111,10 @@ export default function StudyScreen() {
               <IconSymbol name="chevron.left" size={22} color="#fff" />
             </BlurView>
           </Pressable>
-          {!done ? (
-            <ThemedText style={styles.progress}>
-              {isPractice ? 'Prática · ' : ''}
-              {remaining} {remaining === 1 ? 'restante' : 'restantes'}
-            </ThemedText>
-          ) : (
-            <View style={styles.flex1} />
-          )}
+          <View style={styles.flex1} />
           <View style={[styles.goalPill, goalMet && styles.goalPillMet]}>
             <ThemedText style={styles.goalText}>
-              🎯 {Math.min(goalToday, DAILY_GOAL)}/{DAILY_GOAL}
+              {Math.min(goalToday, DAILY_GOAL)}/{DAILY_GOAL}
             </ThemedText>
           </View>
         </View>
@@ -183,13 +175,16 @@ export default function StudyScreen() {
                   <Pressable
                     key={r.grade}
                     onPress={() => rate(r.grade)}
-                    style={({ pressed }) => [styles.ratingPress, { opacity: pressed ? 0.7 : 1 }]}>
-                    <BlurView
-                      tint="systemThickMaterialDark"
-                      intensity={30}
-                      style={[styles.ratingBtn, { borderColor: r.color }]}>
-                      <ThemedText style={[styles.ratingLabel, { color: r.color }]}>{r.label}</ThemedText>
-                    </BlurView>
+                    style={({ pressed }) => [
+                      styles.ratingBtn,
+                      {
+                        backgroundColor: `rgba(${r.rgb},0.18)`,
+                        borderColor: `rgba(${r.rgb},0.45)`,
+                        opacity: pressed ? 0.75 : 1,
+                        transform: [{ scale: pressed ? 0.97 : 1 }],
+                      },
+                    ]}>
+                    <ThemedText style={[styles.ratingLabel, { color: r.color }]}>{r.label}</ThemedText>
                   </Pressable>
                 ))}
               </View>
@@ -214,7 +209,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  progress: { flex: 1, textAlign: 'center', color: 'rgba(255,255,255,0.9)', fontSize: 15, fontWeight: '600' },
   goalPill: {
     paddingHorizontal: 12,
     height: 30,
@@ -262,18 +256,22 @@ const styles = StyleSheet.create({
   },
   revealText: { fontSize: 17, fontWeight: '700', color: '#fff' },
 
-  ratings: { flexDirection: 'row', gap: Spacing.two },
-  ratingPress: { flex: 1 },
+  ratings: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.one,
+  },
   ratingBtn: {
-    height: 70,
-    borderRadius: 16,
-    overflow: 'hidden',
+    width: `48%`,
+    flexGrow: 1,
+    height: 64,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    paddingHorizontal: 4,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  ratingLabel: { fontSize: 14, fontWeight: '800', textAlign: 'center' },
+  ratingLabel: { fontSize: 17, fontWeight: '700', textAlign: 'center', letterSpacing: 0.2 },
 
   doneWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two },
   doneTitle: { color: '#fff', fontSize: 26, fontWeight: '700', marginTop: Spacing.two },
