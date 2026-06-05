@@ -81,7 +81,8 @@ export default function DecksScreen() {
                 <View style={styles.deckInfo}>
                   <ThemedText style={styles.deckName}>{item.name}</ThemedText>
                   <ThemedText style={[styles.deckMeta, { color: colors.textSecondary }]}>
-                    {item.due > 0 ? `${item.due} para revisar` : 'Em dia'} · {item.total} cards
+                    {item.due > 0 ? `${item.due} para revisar · ` : ''}
+                    {item.total} {item.total === 1 ? 'card' : 'cards'}
                   </ThemedText>
                 </View>
                 {item.due > 0 && (
