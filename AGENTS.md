@@ -12,3 +12,4 @@ Commit after each meaningful change:
   decision or tradeoff — enough that the next AI understands without reading the chat.
 - Run `npm run sim` before committing changes to scheduling/progress logic.
 - Verify the git identity is Luiz's (`luiz-kohler` / `luizkohler@icloud.com`) before committing.
+- **Always `git push` right after committing** (remote `origin` → github.com/luiz-kohler/flashapp).
