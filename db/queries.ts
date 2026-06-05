@@ -37,12 +37,16 @@ export function cardsInDeck(deckId: number) {
 }
 
 // Within-session ordering. Mirrors the sort icons on the deck screen so the
-// queue at play time matches what the user is seeing in the list.
-export type StudyOrder = 'shuffle' | 'recent';
+// queue at play time matches what the user is seeing in the list. 'recent' =
+// newest first; 'oldest' = oldest first (same icon, flipped on the UI).
+export type StudyOrder = 'shuffle' | 'recent' | 'oldest';
 
 function applyOrder<T extends { createdAt: Date }>(arr: T[], order: StudyOrder): T[] {
   if (order === 'recent') {
     return [...arr].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  if (order === 'oldest') {
+    return [...arr].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
   return shuffle(arr);
 }

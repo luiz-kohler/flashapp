@@ -31,9 +31,10 @@ export default function DeckScreen() {
   // Card selected for preview (single tap). Null = preview closed.
   const [previewCard, setPreviewCard] = useState<Card | null>(null);
   // Sort mode for the "All cards" list. 'recent' = newest first (default, like
-  // Spotify's liked-songs list), 'shuffle' = random order. shuffleSeed lets the
-  // user re-shuffle by tapping the shuffle icon again.
-  const [sortMode, setSortMode] = useState<'recent' | 'shuffle'>('recent');
+  // Spotify's liked-songs list), 'oldest' = oldest first (tap the clock again
+  // to flip direction), 'shuffle' = random order. shuffleSeed lets the user
+  // re-shuffle by tapping the shuffle icon again.
+  const [sortMode, setSortMode] = useState<'recent' | 'oldest' | 'shuffle'>('recent');
   const [shuffleSeed, setShuffleSeed] = useState(0);
 
   // drizzle's useLiveQuery only reacts to its own FROM table, so we re-read
@@ -63,6 +64,9 @@ export default function DeckScreen() {
     if (sortMode === 'recent') {
       return [...cards].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     }
+    if (sortMode === 'oldest') {
+      return [...cards].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    }
     const arr = [...cards];
     let s = shuffleSeed || 1;
     const rand = () => {
@@ -85,9 +89,12 @@ export default function DeckScreen() {
       setShuffleSeed(Date.now());
     }
   }
-  function pickRecent() {
+  // Tapping the clock toggles direction (newest-first ↔ oldest-first), like
+  // most lists with a single sort axis. Coming from shuffle, default to the
+  // newest-first direction first.
+  function toggleRecent() {
     Haptics.selectionAsync();
-    setSortMode('recent');
+    setSortMode((m) => (m === 'recent' ? 'oldest' : 'recent'));
   }
 
   function handleAddCard() {
@@ -188,13 +195,17 @@ export default function DeckScreen() {
           <ThemedText style={[styles.sectionLabel, { color: colors.textSecondary }]}>
             ALL CARDS
           </ThemedText>
-          {/* Sort: icon-only, Spotify style (the active one lights up in the accent color). */}
+          {/* Sort: icon-only, Spotify style (the active one lights up in the
+              accent color). The clock toggles direction — in 'oldest' mode we
+              mirror the icon horizontally so the curved arrow points the
+              other way, signaling "going forward in time" instead of back. */}
           <View style={styles.sortRow}>
-            <Pressable onPress={pickRecent} hitSlop={10} style={styles.sortBtn}>
+            <Pressable onPress={toggleRecent} hitSlop={10} style={styles.sortBtn}>
               <IconSymbol
                 name="clock.arrow.circlepath"
                 size={18}
-                color={sortMode === 'recent' ? accent : colors.textSecondary}
+                color={sortMode === 'recent' || sortMode === 'oldest' ? accent : colors.textSecondary}
+                style={sortMode === 'oldest' ? styles.sortIconFlipped : undefined}
               />
             </Pressable>
             <Pressable onPress={toggleShuffle} hitSlop={10} style={styles.sortBtn}>
@@ -358,6 +369,7 @@ const styles = StyleSheet.create({
   },
   sortRow: { flexDirection: 'row', gap: Spacing.two },
   sortBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  sortIconFlipped: { transform: [{ scaleX: -1 }] },
   list: { gap: Spacing.two, paddingBottom: 120 },
   empty: { textAlign: 'center', marginTop: Spacing.five, fontSize: 15 },
   cardRow: {
