@@ -1,112 +1,166 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
+import { LinearGradient } from 'expo-linear-gradient';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
+import { GlassSurface } from '@/components/glass-surface';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+import { Colors, Spacing } from '@/constants/theme';
+import { dailyReviewCounts } from '@/db/queries';
+import { computeProgress, localDay, weeklyCounts } from '@/lib/progress';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
-export default function TabTwoScreen() {
+const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']; // Dom..Sáb
+
+export default function ProgressScreen() {
+  const scheme = useColorScheme() ?? 'light';
+  const colors = Colors[scheme];
+  const { data } = useLiveQuery(dailyReviewCounts());
+  const today = localDay(new Date());
+  const p = computeProgress(data ?? [], today);
+
+  const bg: [string, string] = scheme === 'dark' ? ['#101114', '#000000'] : ['#EEF2FB', '#F7F8FC'];
+  const goalPct = Math.min(p.today / p.goal, 1);
+  const maxBar = Math.max(...p.last7.map((d) => d.count), p.goal, 1);
+  const weekly = weeklyCounts(data ?? [], today);
+  const maxWeek = Math.max(...weekly.map((d) => d.count), 1);
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
+    <View style={styles.root}>
+      <LinearGradient colors={bg} style={StyleSheet.absoluteFill} />
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          <ThemedText style={styles.title}>Progresso</ThemedText>
+
+          {/* Streak */}
+          <GlassSurface radius={22} style={styles.streakCard}>
+            <ThemedText style={styles.streakEmoji}>🔥</ThemedText>
+            <View>
+              <ThemedText style={styles.streakNum}>{p.streak}</ThemedText>
+              <ThemedText style={[styles.streakLabel, { color: colors.textSecondary }]}>
+                {p.streak === 1 ? 'dia de ofensiva' : 'dias de ofensiva'}
+              </ThemedText>
+            </View>
+          </GlassSurface>
+
+          {/* Daily goal */}
+          <GlassSurface radius={22} style={styles.card}>
+            <View style={styles.rowBetween}>
+              <ThemedText style={styles.cardTitle}>Meta de hoje</ThemedText>
+              <ThemedText style={[styles.cardTitle, { color: p.goalMet ? '#32D74B' : colors.text }]}>
+                {p.today}/{p.goal}
+              </ThemedText>
+            </View>
+            <View style={[styles.track, { backgroundColor: colors.tabIconDefault + '40' }]}>
+              <View
+                style={[
+                  styles.fill,
+                  { width: `${goalPct * 100}%`, backgroundColor: p.goalMet ? '#32D74B' : colors.tint },
+                ]}
+              />
+            </View>
+            <ThemedText style={[styles.cardSub, { color: colors.textSecondary }]}>
+              {p.goalMet ? 'Meta batida! 🎯' : `Faltam ${p.goal - p.today} para a meta de hoje`}
             </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+          </GlassSurface>
+
+          {/* Level + total */}
+          <View style={styles.statsRow}>
+            <GlassSurface radius={18} style={styles.statCard}>
+              <ThemedText style={[styles.statValue, { color: colors.tint }]}>Nv {p.level}</ThemedText>
+              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>{p.xp} XP</ThemedText>
+            </GlassSurface>
+            <GlassSurface radius={18} style={styles.statCard}>
+              <ThemedText style={styles.statValue}>{p.totalReviews}</ThemedText>
+              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>revisões totais</ThemedText>
+            </GlassSurface>
+          </View>
+
+          {/* Last 7 days */}
+          <GlassSurface radius={22} style={styles.card}>
+            <ThemedText style={styles.cardTitle}>Últimos 7 dias</ThemedText>
+            <View style={styles.chart}>
+              {p.last7.map((d) => {
+                const isToday = d.day === today;
+                const h = 6 + (d.count / maxBar) * 64;
+                const weekday = WEEKDAYS[new Date(`${d.day}T00:00:00`).getDay()];
+                return (
+                  <View key={d.day} style={styles.barCol}>
+                    <ThemedText style={[styles.barCount, { color: colors.textSecondary }]}>
+                      {d.count || ''}
+                    </ThemedText>
+                    <View
+                      style={[
+                        styles.bar,
+                        { height: h, backgroundColor: isToday ? colors.tint : colors.tint + '55' },
+                      ]}
+                    />
+                    <ThemedText style={[styles.barLabel, { color: colors.textSecondary }]}>{weekday}</ThemedText>
+                  </View>
+                );
+              })}
+            </View>
+          </GlassSurface>
+
+          {/* Since the beginning (weekly totals) */}
+          <GlassSurface radius={22} style={styles.card}>
+            <ThemedText style={styles.cardTitle}>Desde o início</ThemedText>
+            <View style={styles.chart}>
+              {weekly.map((d, i) => {
+                const isCurrent = i === weekly.length - 1;
+                const h = 6 + (d.count / maxWeek) * 64;
+                const dt = new Date(`${d.day}T00:00:00`);
+                const label = `${dt.getDate()}/${dt.getMonth() + 1}`;
+                return (
+                  <View key={d.day} style={styles.barCol}>
+                    <ThemedText style={[styles.barCount, { color: colors.textSecondary }]}>
+                      {d.count || ''}
+                    </ThemedText>
+                    <View
+                      style={[
+                        styles.bar,
+                        { height: h, backgroundColor: isCurrent ? colors.tint : colors.tint + '55' },
+                      ]}
+                    />
+                    <ThemedText
+                      numberOfLines={1}
+                      style={[styles.barLabel, styles.weekLabel, { color: colors.textSecondary }]}>
+                      {label}
+                    </ThemedText>
+                  </View>
+                );
+              })}
+            </View>
+          </GlassSurface>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
+  root: { flex: 1 },
+  safe: { flex: 1, paddingHorizontal: Spacing.three },
+  scroll: { gap: Spacing.three, paddingBottom: 120 },
+  title: { fontSize: 34, fontWeight: '700', lineHeight: 41, paddingTop: Spacing.two },
+  streakCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.four },
+  streakEmoji: { fontSize: 44, lineHeight: 52 },
+  streakNum: { fontSize: 40, fontWeight: '800', lineHeight: 44 },
+  streakLabel: { fontSize: 14 },
+  card: { padding: Spacing.four, gap: Spacing.two },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardTitle: { fontSize: 17, fontWeight: '700' },
+  cardSub: { fontSize: 14 },
+  track: { height: 12, borderRadius: 6, overflow: 'hidden', marginVertical: Spacing.one },
+  fill: { height: 12, borderRadius: 6 },
+  statsRow: { flexDirection: 'row', gap: Spacing.three },
+  statCard: { flex: 1, padding: Spacing.three, alignItems: 'center', gap: 2 },
+  statValue: { fontSize: 24, fontWeight: '800' },
+  statLabel: { fontSize: 12 },
+  chart: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, marginTop: Spacing.three },
+  barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  barCount: { fontSize: 11, fontWeight: '600', lineHeight: 15, minHeight: 15, marginBottom: 4 },
+  bar: { width: 22, borderRadius: 6 },
+  barLabel: { fontSize: 12, fontWeight: '600', marginTop: 6 },
+  weekLabel: { fontSize: 10 },
 });

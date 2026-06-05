@@ -1,98 +1,152 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
+import { GlassSurface } from '@/components/glass-surface';
+import { SwipeToDelete } from '@/components/swipe-to-delete';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { Colors, Spacing } from '@/constants/theme';
+import { createDeck, decksWithCounts, deleteDeck } from '@/db/queries';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
-export default function HomeScreen() {
+export default function DecksScreen() {
+  const scheme = useColorScheme() ?? 'light';
+  const colors = Colors[scheme];
+  // Live query: re-renders automatically whenever decks/cards change.
+  const { data: decks } = useLiveQuery(decksWithCounts());
+
+  function handleAddDeck() {
+    Alert.prompt('Novo deck', 'Como vai se chamar?', (name) => {
+      const trimmed = name?.trim();
+      if (trimmed) {
+        createDeck(trimmed);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    });
+  }
+
+  const bg: [string, string] =
+    scheme === 'dark' ? ['#101114', '#000000'] : ['#EEF2FB', '#F7F8FC'];
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={styles.root}>
+      <LinearGradient colors={bg} style={StyleSheet.absoluteFill} />
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <View style={styles.header}>
+          <ThemedText style={styles.largeTitle}>Decks</ThemedText>
+          <Pressable
+            onPress={handleAddDeck}
+            hitSlop={12}
+            style={({ pressed }) => [styles.addShadow, { opacity: pressed ? 0.6 : 1 }]}>
+            <GlassSurface radius={19} style={styles.addButton}>
+              <ThemedText style={[styles.addButtonText, { color: colors.tint }]}>＋</ThemedText>
+            </GlassSurface>
+          </Pressable>
+        </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        <FlatList
+          data={decks}
+          keyExtractor={(d) => String(d.id)}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <ThemedText style={[styles.empty, { color: colors.textSecondary }]}>
+              Nenhum deck ainda.{'\n'}Toque em ＋ para criar o primeiro.
+            </ThemedText>
+          }
+          renderItem={({ item }) => (
+            <SwipeToDelete radius={20} onConfirm={() => deleteDeck(item.id)}>
+            <Pressable
+              onPress={() => {
+                Haptics.selectionAsync();
+                router.push({ pathname: '/deck/[id]', params: { id: String(item.id) } });
+              }}
+              style={({ pressed }) => [
+                styles.cardShadow,
+                { opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] },
+              ]}>
+              <GlassSurface radius={20} style={styles.deckRow}>
+                <View style={[styles.emojiBadge, { backgroundColor: item.color + '22' }]}>
+                  <ThemedText style={styles.emoji}>{item.emoji}</ThemedText>
+                </View>
+                <View style={styles.deckInfo}>
+                  <ThemedText style={styles.deckName}>{item.name}</ThemedText>
+                  <ThemedText style={[styles.deckMeta, { color: colors.textSecondary }]}>
+                    {item.due > 0 ? `${item.due} para revisar` : 'Em dia'} · {item.total} cards
+                  </ThemedText>
+                </View>
+                {item.due > 0 && (
+                  <View style={[styles.dueBadge, { backgroundColor: item.color }]}>
+                    <ThemedText style={styles.dueBadgeText}>{item.due}</ThemedText>
+                  </View>
+                )}
+              </GlassSurface>
+            </Pressable>
+            </SwipeToDelete>
+          )}
+        />
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  root: { flex: 1 },
+  // Wider side padding keeps cards off the screen edge, so the iOS back/navigation
+  // swipe (which lives at the edge) doesn't land on a row and trigger delete.
+  safe: { flex: 1, paddingHorizontal: Spacing.four },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.three,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  largeTitle: { fontSize: 34, fontWeight: '700', lineHeight: 41 },
+  addShadow: {
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  addButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  addButtonText: { fontSize: 22, lineHeight: 24, fontWeight: '500' },
+  list: { gap: Spacing.two, paddingBottom: 120 },
+  empty: { textAlign: 'center', marginTop: Spacing.six, fontSize: 15, lineHeight: 22 },
+  cardShadow: {
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
+  deckRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    padding: Spacing.three,
+  },
+  emojiBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emoji: { fontSize: 24 },
+  deckInfo: { flex: 1, gap: 2 },
+  deckName: { fontSize: 17, fontWeight: '600' },
+  deckMeta: { fontSize: 13, lineHeight: 18 },
+  dueBadge: {
+    minWidth: 26,
+    height: 26,
+    borderRadius: 13,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dueBadgeText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });

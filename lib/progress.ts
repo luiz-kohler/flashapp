@@ -1,0 +1,88 @@
+// Daily goal + gamification, derived purely from review history (review_logs).
+// Dependency-free on purpose, so the sim harness can test it in Node.
+
+export const DAILY_GOAL = 21; // target reviews per day — a goal, NOT a hard cap.
+
+export type DailyCount = { day: string; count: number }; // day = 'YYYY-MM-DD' (local)
+
+export type Progress = {
+  today: number; // reviews done today
+  goal: number;
+  goalMet: boolean;
+  streak: number; // consecutive days with >=1 review (ending today or yesterday)
+  totalReviews: number;
+  xp: number; // 10 XP per review
+  level: number;
+  last7: DailyCount[]; // oldest -> newest, for the mini chart
+};
+
+function pad(n: number): string {
+  return n < 10 ? `0${n}` : `${n}`;
+}
+
+// Local 'YYYY-MM-DD' for a Date.
+export function localDay(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function addDays(day: string, delta: number): string {
+  const d = new Date(`${day}T00:00:00`); // parsed as local time (no trailing Z)
+  d.setDate(d.getDate() + delta);
+  return localDay(d);
+}
+
+// XP→level curve: level N needs N^2 * 100 XP, so it slows down gracefully.
+export function levelForXp(xp: number): number {
+  return Math.floor(Math.sqrt(xp / 100)) + 1;
+}
+
+export function computeProgress(rows: DailyCount[], today: string, goal = DAILY_GOAL): Progress {
+  const map = new Map(rows.map((r) => [r.day, r.count]));
+  const todayCount = map.get(today) ?? 0;
+  const totalReviews = rows.reduce((s, r) => s + r.count, 0);
+
+  // Streak: walk backwards from today (or yesterday, if nothing logged yet today)
+  // while each day has at least one review.
+  let streak = 0;
+  let cursor = todayCount > 0 ? today : addDays(today, -1);
+  while ((map.get(cursor) ?? 0) > 0) {
+    streak++;
+    cursor = addDays(cursor, -1);
+  }
+
+  const last7: DailyCount[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const day = addDays(today, -i);
+    last7.push({ day, count: map.get(day) ?? 0 });
+  }
+
+  const xp = totalReviews * 10;
+  return {
+    today: todayCount,
+    goal,
+    goalMet: todayCount >= goal,
+    streak,
+    totalReviews,
+    xp,
+    level: levelForXp(xp),
+    last7,
+  };
+}
+
+// Review totals bucketed into 7-day windows ending today — the "since you
+// started" history. `day` is the first (oldest) date of each week. Oldest -> newest.
+export function weeklyCounts(rows: DailyCount[], today: string, weeks = 8): DailyCount[] {
+  const map = new Map(rows.map((r) => [r.day, r.count]));
+  const out: DailyCount[] = [];
+  for (let w = weeks - 1; w >= 0; w--) {
+    let sum = 0;
+    let start = today;
+    for (let d = 0; d < 7; d++) {
+      const day = addDays(today, -(w * 7 + d));
+      sum += map.get(day) ?? 0;
+      start = day; // ends on the oldest day of the bucket
+    }
+    out.push({ day: start, count: sum });
+  }
+  return out;
+}

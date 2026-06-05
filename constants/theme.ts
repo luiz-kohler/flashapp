@@ -16,6 +16,9 @@ export const Colors = {
     icon: '#687076',
     tabIconDefault: '#687076',
     tabIconSelected: tintColorLight,
+    // Added for flashapp: card surface + secondary text (iOS system greys).
+    surface: '#F2F2F7',
+    textSecondary: '#60646C',
   },
   dark: {
     text: '#ECEDEE',
@@ -24,6 +27,8 @@ export const Colors = {
     icon: '#9BA1A6',
     tabIconDefault: '#9BA1A6',
     tabIconSelected: tintColorDark,
+    surface: '#1C1C1E',
+    textSecondary: '#9BA1A6',
   },
 };
 
@@ -51,3 +56,14 @@ export const Fonts = Platform.select({
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });
+
+// 4-pt spacing scale, used across flashapp screens.
+export const Spacing = {
+  half: 2,
+  one: 4,
+  two: 8,
+  three: 16,
+  four: 24,
+  five: 32,
+  six: 64,
+} as const;
