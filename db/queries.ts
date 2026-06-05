@@ -89,8 +89,15 @@ export function createDeck(name: string, emoji?: string, color?: string) {
 }
 
 // Live query: each deck plus its total card count and how many are due now.
-// The two correlated subqueries run in SQLite; `(unixepoch() * 1000)` is "now"
-// in epoch-ms, matching how we store the `due` column.
+// The two correlated subqueries run in SQLite. Columns are written with their
+// fully-qualified SQL names ("cards"."deck_id", "decks"."id") because Drizzle
+// drops the table prefix when interpolating `cards.deckId`/`decks.id` inside
+// a `sql` template, and the bare "id" inside the subquery would otherwise
+// resolve to "cards"."id" (the FROM of the subquery) instead of the outer
+// "decks"."id" — turning the count into garbage whenever card.id ≠ deck.id.
+// Same reason "due" is filtered in JS below: SQLite's `unixepoch()` is in
+// seconds, multiplying by 1000 truncates sub-second precision and would
+// briefly hide a just-created card.
 export function decksWithCounts() {
   return db
     .select({
@@ -98,8 +105,8 @@ export function decksWithCounts() {
       name: decks.name,
       emoji: decks.emoji,
       color: decks.color,
-      total: sql<number>`(SELECT COUNT(*) FROM ${cards} WHERE ${cards.deckId} = ${decks.id})`,
-      due: sql<number>`(SELECT COUNT(*) FROM ${cards} WHERE ${cards.deckId} = ${decks.id} AND ${cards.due} <= (unixepoch() * 1000))`,
+      total: sql<number>`(SELECT COUNT(*) FROM "cards" WHERE "cards"."deck_id" = "decks"."id")`,
+      due: sql<number>`(SELECT COUNT(*) FROM "cards" WHERE "cards"."deck_id" = "decks"."id" AND "cards"."due" <= ${Date.now()})`,
     })
     .from(decks)
     .orderBy(desc(decks.createdAt));
