@@ -136,9 +136,6 @@ export default function DecksScreen() {
                 { opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] },
               ]}>
               <GlassSurface radius={20} style={styles.deckRow}>
-                <View style={[styles.emojiBadge, { backgroundColor: item.color + '22' }]}>
-                  <ThemedText style={styles.emoji}>{item.emoji}</ThemedText>
-                </View>
                 <View style={styles.deckInfo}>
                   <ThemedText style={styles.deckName}>{item.name}</ThemedText>
                   <ThemedText style={[styles.deckMeta, { color: colors.textSecondary }]}>
@@ -197,14 +194,6 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     padding: Spacing.three,
   },
-  emojiBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emoji: { fontSize: 24 },
   deckInfo: { flex: 1, gap: 2 },
   deckName: { fontSize: 17, fontWeight: '600' },
   deckMeta: { fontSize: 13, lineHeight: 18 },
