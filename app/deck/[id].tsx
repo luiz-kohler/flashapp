@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActionSheetIOS, FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { ActionSheetIOS, FlatList, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -27,6 +27,8 @@ export default function DeckScreen() {
   const [deck, setDeck] = useState(() => getDeck(deckId));
   const [cards, setCards] = useState<Card[]>(() => cardsInDeck(deckId).all());
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Card selecionado para preview (tap simples). Null = preview fechado.
+  const [previewCard, setPreviewCard] = useState<Card | null>(null);
   // Sort para a lista "Todos os cards". 'recent' = criados mais recentes primeiro
   // (default, igual lista de músicas curtidas do Spotify), 'shuffle' = ordem aleatória.
   // shuffleSeed permite re-embaralhar quando o usuário toca de novo no ícone de shuffle.
@@ -210,7 +212,10 @@ export default function DeckScreen() {
             return (
               <Animated.View layout={LinearTransition} exiting={FadeOut.duration(220)}>
                 <SwipeToDelete onConfirm={() => { deleteCard(item.id); refresh(); }}>
-                  <Pressable onLongPress={() => showCardMenu(item)} delayLongPress={350}>
+                  <Pressable
+                    onPress={() => { Haptics.selectionAsync(); setPreviewCard(item); }}
+                    onLongPress={() => showCardMenu(item)}
+                    delayLongPress={350}>
                   <GlassSurface radius={16} style={styles.cardRow}>
                 <View style={styles.cardText}>
                   <RichText
@@ -253,6 +258,37 @@ export default function DeckScreen() {
                 ))}
               </View>
             </View>
+          </Pressable>
+        </Modal>
+
+        {/* Preview do card (tap simples na linha). Mostra frente e verso
+            completos sem mexer no agendamento FSRS — é só leitura. Tocar
+            em qualquer lugar fora ou no próprio card fecha. */}
+        <Modal
+          visible={previewCard !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setPreviewCard(null)}>
+          <Pressable style={styles.previewOverlay} onPress={() => setPreviewCard(null)}>
+            {previewCard && (
+              <Pressable onPress={() => setPreviewCard(null)} style={styles.previewCardWrap}>
+                <GlassSurface radius={20} style={styles.previewCard}>
+                  <ScrollView
+                    contentContainerStyle={styles.previewContent}
+                    showsVerticalScrollIndicator={false}>
+                    <RichText
+                      text={previewCard.front}
+                      style={[styles.previewFront, { color: colors.text }]}
+                    />
+                    <View style={[styles.previewDivider, { backgroundColor: colors.textSecondary + '33' }]} />
+                    <RichText
+                      text={previewCard.back}
+                      style={[styles.previewBack, { color: colors.textSecondary }]}
+                    />
+                  </ScrollView>
+                </GlassSurface>
+              </Pressable>
+            )}
           </Pressable>
         </Modal>
       </SafeAreaView>
@@ -327,4 +363,17 @@ const styles = StyleSheet.create({
   emojiGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   emojiCell: { width: '12.5%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
   emojiOption: { fontSize: 28, lineHeight: 36 },
+  previewOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.four,
+  },
+  previewCardWrap: { width: '100%', maxWidth: 520 },
+  previewCard: { maxHeight: '80%', padding: Spacing.four },
+  previewContent: { gap: Spacing.three },
+  previewFront: { fontSize: 22, fontWeight: '700', lineHeight: 28 },
+  previewDivider: { height: StyleSheet.hairlineWidth },
+  previewBack: { fontSize: 18, lineHeight: 26 },
 });
