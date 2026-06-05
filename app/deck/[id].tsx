@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActionSheetIOS, FlatList, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActionSheetIOS, FlatList, Modal, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -23,6 +23,7 @@ export default function DeckScreen() {
   const colors = Colors[scheme];
   const { id } = useLocalSearchParams<{ id: string }>();
   const deckId = Number(id);
+  const { height: windowHeight } = useWindowDimensions();
 
   const [deck, setDeck] = useState(() => getDeck(deckId));
   const [cards, setCards] = useState<Card[]>(() => cardsInDeck(deckId).all());
@@ -262,8 +263,9 @@ export default function DeckScreen() {
         </Modal>
 
         {/* Card preview (single tap on a row). Shows the full front and back
-            without touching FSRS scheduling — read-only. Tapping anywhere
-            outside or on the card itself closes it. */}
+            without touching FSRS scheduling — read-only. Tap the dim overlay
+            (outside the card) to close. We don't close on a tap inside the
+            card so the user can read it without dismissing by accident. */}
         <Modal
           visible={previewCard !== null}
           transparent
@@ -271,7 +273,12 @@ export default function DeckScreen() {
           onRequestClose={() => setPreviewCard(null)}>
           <Pressable style={styles.previewOverlay} onPress={() => setPreviewCard(null)}>
             {previewCard && (
-              <Pressable onPress={() => setPreviewCard(null)} style={styles.previewCardWrap}>
+              // Pixel-based maxHeight via useWindowDimensions: RN percentage
+              // heights don't resolve when the parent has no explicit height,
+              // which was collapsing the inner ScrollView and hiding the back.
+              <View
+                style={[styles.previewCardWrap, { maxHeight: windowHeight * 0.8 }]}
+                onStartShouldSetResponder={() => true}>
                 <GlassSurface radius={20} style={styles.previewCard}>
                   <ScrollView
                     contentContainerStyle={styles.previewContent}
@@ -283,11 +290,11 @@ export default function DeckScreen() {
                     <View style={[styles.previewDivider, { backgroundColor: colors.textSecondary + '33' }]} />
                     <RichText
                       text={previewCard.back}
-                      style={[styles.previewBack, { color: colors.textSecondary }]}
+                      style={[styles.previewBack, { color: colors.text }]}
                     />
                   </ScrollView>
                 </GlassSurface>
-              </Pressable>
+              </View>
             )}
           </Pressable>
         </Modal>
@@ -371,7 +378,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
   },
   previewCardWrap: { width: '100%', maxWidth: 520 },
-  previewCard: { maxHeight: '80%', padding: Spacing.four },
+  // flexShrink lets the surface shrink to its wrap's bounded maxHeight when
+  // content is tall, so the ScrollView inside gets a real bounded height and
+  // actually scrolls instead of clipping the back text.
+  previewCard: { flexShrink: 1, padding: Spacing.four },
   previewContent: { gap: Spacing.three },
   previewFront: { fontSize: 22, fontWeight: '700', lineHeight: 28 },
   previewDivider: { height: StyleSheet.hairlineWidth },
