@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useRef, type ReactNode } from 'react';
-import { Animated, Dimensions, StyleSheet, View } from 'react-native';
+import { Animated, Dimensions, StyleSheet } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -35,7 +35,15 @@ export function SwipeToDelete({ children, onConfirm, radius = 16 }: Props) {
         onConfirm();
       }}
       renderLeftActions={(progress) => {
-        const opacity = progress.interpolate({
+        // Fade the whole red panel with the drag, so releasing/cancelling
+        // dissolves it smoothly back to the default background instead of
+        // snapping from red to black.
+        const bgOpacity = progress.interpolate({
+          inputRange: [0, 0.35],
+          outputRange: [0, 1],
+          extrapolate: 'clamp',
+        });
+        const iconOpacity = progress.interpolate({
           inputRange: [0, 0.25],
           outputRange: [0, 1],
           extrapolate: 'clamp',
@@ -47,11 +55,11 @@ export function SwipeToDelete({ children, onConfirm, radius = 16 }: Props) {
           extrapolate: 'clamp',
         });
         return (
-          <View style={[styles.action, { borderRadius: radius }]}>
-            <Animated.View style={{ opacity, transform: [{ scale }] }}>
+          <Animated.View style={[styles.action, { borderRadius: radius, opacity: bgOpacity }]}>
+            <Animated.View style={{ opacity: iconOpacity, transform: [{ scale }] }}>
               <IconSymbol name="trash" size={28} color="#fff" />
             </Animated.View>
-          </View>
+          </Animated.View>
         );
       }}>
       {children}
