@@ -112,17 +112,17 @@ export default function NewCardScreen() {
           <ThemedText style={[styles.hint, { color: colors.textSecondary }]}>
             Dica: selecione um trecho e toque em B para deixar em negrito.
           </ThemedText>
-        </ScrollView>
 
-        <Pressable
-          onPress={save}
-          disabled={!canSave}
-          style={({ pressed }) => [
-            styles.saveBtn,
-            { backgroundColor: colors.tint, opacity: !canSave ? 0.4 : pressed ? 0.85 : 1 },
-          ]}>
-          <ThemedText style={styles.saveText}>Salvar card</ThemedText>
-        </Pressable>
+          <Pressable
+            onPress={save}
+            disabled={!canSave}
+            style={({ pressed }) => [
+              styles.saveBtn,
+              { backgroundColor: colors.tint, opacity: !canSave ? 0.4 : pressed ? 0.85 : 1 },
+            ]}>
+            <ThemedText style={styles.saveText}>Salvar card</ThemedText>
+          </Pressable>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -157,8 +157,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: Spacing.three,
-    marginBottom: Spacing.three,
+    marginTop: Spacing.three,
   },
   saveText: { color: '#fff', fontSize: 17, fontWeight: '700' },
 });
