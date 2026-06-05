@@ -41,14 +41,25 @@ export default function ProgressScreen() {
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           <ThemedText style={styles.title}>Progresso</ThemedText>
 
-          {/* Streak */}
+          {/* Streak + record */}
           <GlassSurface radius={22} style={styles.streakCard}>
             <ThemedText style={styles.streakEmoji}>🔥</ThemedText>
-            <View>
+            <View style={styles.flex1}>
               <ThemedText style={styles.streakNum}>{p.streak}</ThemedText>
               <ThemedText style={[styles.streakLabel, { color: colors.textSecondary }]}>
                 {p.streak === 1 ? 'dia de ofensiva' : 'dias de ofensiva'}
               </ThemedText>
+            </View>
+            <View style={styles.recordBox}>
+              <ThemedText style={styles.recordTrophy}>🏆</ThemedText>
+              <ThemedText
+                style={[
+                  styles.recordNum,
+                  { color: p.streak > 0 && p.streak === p.bestStreak ? colors.tint : colors.text },
+                ]}>
+                {p.bestStreak}
+              </ThemedText>
+              <ThemedText style={[styles.recordLabel, { color: colors.textSecondary }]}>recorde</ThemedText>
             </View>
           </GlassSurface>
 
@@ -166,6 +177,11 @@ const styles = StyleSheet.create({
   streakEmoji: { fontSize: 44, lineHeight: 52 },
   streakNum: { fontSize: 40, fontWeight: '800', lineHeight: 44 },
   streakLabel: { fontSize: 14 },
+  flex1: { flex: 1 },
+  recordBox: { alignItems: 'center' },
+  recordTrophy: { fontSize: 20 },
+  recordNum: { fontSize: 22, fontWeight: '800', lineHeight: 26 },
+  recordLabel: { fontSize: 11 },
   card: { padding: Spacing.four, gap: Spacing.two },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardTitle: { fontSize: 17, fontWeight: '700' },

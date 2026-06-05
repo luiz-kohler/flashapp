@@ -10,6 +10,7 @@ export type Progress = {
   goal: number;
   goalMet: boolean;
   streak: number; // consecutive days with >=1 review (ending today or yesterday)
+  bestStreak: number; // longest such run ever (the user's record)
   totalReviews: number;
   xp: number; // 10 XP per review
   level: number;
@@ -53,6 +54,20 @@ export function computeProgress(rows: DailyCount[], today: string, goal = DAILY_
     cursor = addDays(cursor, -1);
   }
 
+  // Longest run of consecutive active days, ever (the record).
+  const activeDays = rows
+    .filter((r) => r.count > 0)
+    .map((r) => r.day)
+    .sort();
+  let bestStreak = 0;
+  let run = 0;
+  let prevDay: string | null = null;
+  for (const day of activeDays) {
+    run = prevDay && addDays(prevDay, 1) === day ? run + 1 : 1;
+    if (run > bestStreak) bestStreak = run;
+    prevDay = day;
+  }
+
   const last7: DailyCount[] = [];
   for (let i = 6; i >= 0; i--) {
     const day = addDays(today, -i);
@@ -69,6 +84,7 @@ export function computeProgress(rows: DailyCount[], today: string, goal = DAILY_
     goal,
     goalMet: todayCount >= goal,
     streak,
+    bestStreak,
     totalReviews,
     xp,
     level,

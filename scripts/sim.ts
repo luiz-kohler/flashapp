@@ -182,6 +182,18 @@ console.log('\nS5 — Gamificação: ofensiva, meta diária e XP');
   check('Hoje conta 21 reviews', p.today === 21, `(${p.today})`);
   check('Meta batida (>=21)', p.goalMet === true);
   check('Ofensiva = 3 dias consecutivos', p.streak === 3, `(${p.streak})`);
+  check('Recorde de ofensiva = 3', p.bestStreak === 3, `(${p.bestStreak})`);
+  const pg = computeProgress(
+    [
+      { day: '2026-06-01', count: 1 },
+      { day: '2026-06-02', count: 1 },
+      { day: '2026-06-03', count: 1 },
+      { day: '2026-06-04', count: 1 },
+      { day: '2026-06-10', count: 1 },
+    ],
+    today
+  );
+  check('Recorde reflete o maior histórico (4) com ofensiva atual 1', pg.bestStreak === 4 && pg.streak === 1, `(best ${pg.bestStreak}, cur ${pg.streak})`);
   check('XP = total*10 = 510', p.xp === 510, `(${p.xp})`);
   check('Nível 3 com 510 XP', p.level === 3, `(${p.level})`);
   check('Progresso no nível = 110/500 XP', p.xpIntoLevel === 110 && p.xpForNext === 500, `(${p.xpIntoLevel}/${p.xpForNext})`);
