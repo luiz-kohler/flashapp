@@ -28,7 +28,7 @@ import {
   State,
   type ReviewGrade,
 } from '../lib/fsrs';
-import { computeProgress, DAILY_GOAL, localDay, weeklyCounts } from '../lib/progress';
+import { computeProgress, DAILY_GOAL, localDay, weeklyCounts, xpForRating } from '../lib/progress';
 import { parseCards } from '../lib/parse-cards';
 
 const sqlite = new Database(':memory:');
@@ -197,6 +197,12 @@ console.log('\nS5 — Gamificação: ofensiva, meta diária e XP');
   check('XP = total*10 = 510', p.xp === 510, `(${p.xp})`);
   check('Nível 3 com 510 XP', p.level === 3, `(${p.level})`);
   check('Progresso no nível = 110/500 XP', p.xpIntoLevel === 110 && p.xpForNext === 500, `(${p.xpIntoLevel}/${p.xpForNext})`);
+  check(
+    'xpForRating: Fácil(15) > Bom(10) > Difícil(6) > De novo(2)',
+    xpForRating(4) === 15 && xpForRating(3) === 10 && xpForRating(2) === 6 && xpForRating(1) === 2
+  );
+  const pxp = computeProgress(rows, today, 1000);
+  check('computeProgress usa o totalXp passado (1000) → nível 4', pxp.xp === 1000 && pxp.level === 4, `(xp ${pxp.xp}, lvl ${pxp.level})`);
   check('Últimos 7 dias = 7 colunas terminando em hoje', p.last7.length === 7 && p.last7[6].day === today);
 
   // No review today + a gap → streak counts only yesterday.

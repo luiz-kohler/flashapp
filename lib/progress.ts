@@ -3,6 +3,12 @@
 
 export const DAILY_GOAL = 21; // target reviews per day — a goal, NOT a hard cap.
 
+// XP earned per review by rating (1=Again .. 4=Easy). Easy rewards the most.
+export const XP_BY_RATING: Record<number, number> = { 1: 2, 2: 6, 3: 10, 4: 15 };
+export function xpForRating(rating: number): number {
+  return XP_BY_RATING[rating] ?? 10;
+}
+
 export type DailyCount = { day: string; count: number }; // day = 'YYYY-MM-DD' (local)
 
 export type Progress = {
@@ -40,7 +46,12 @@ export function levelForXp(xp: number): number {
   return Math.floor(Math.sqrt(xp / 100)) + 1;
 }
 
-export function computeProgress(rows: DailyCount[], today: string, goal = DAILY_GOAL): Progress {
+export function computeProgress(
+  rows: DailyCount[],
+  today: string,
+  totalXp?: number,
+  goal = DAILY_GOAL
+): Progress {
   const map = new Map(rows.map((r) => [r.day, r.count]));
   const todayCount = map.get(today) ?? 0;
   const totalReviews = rows.reduce((s, r) => s + r.count, 0);
@@ -74,7 +85,8 @@ export function computeProgress(rows: DailyCount[], today: string, goal = DAILY_
     last7.push({ day, count: map.get(day) ?? 0 });
   }
 
-  const xp = totalReviews * 10;
+  // Weighted XP (by rating) is passed in; fall back to a flat estimate.
+  const xp = totalXp ?? totalReviews * 10;
   const level = levelForXp(xp);
   const levelFloor = (level - 1) ** 2 * 100; // XP where this level starts
   const xpForNext = level ** 2 * 100 - levelFloor; // XP span of this level

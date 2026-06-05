@@ -2,7 +2,7 @@ import { and, desc, eq, lte, sql } from 'drizzle-orm';
 
 import { initialCardState, reviewCard, type ReviewGrade } from '@/lib/fsrs';
 import { randomEmoji } from '@/lib/emojis';
-import { DAILY_GOAL } from '@/lib/progress';
+import { DAILY_GOAL, xpForRating } from '@/lib/progress';
 import { db } from './client';
 import { cards, decks, reviewLogs, type Card } from './schema';
 
@@ -68,6 +68,17 @@ export function dailyReviewCounts() {
     .from(reviewLogs)
     .groupBy(day)
     .orderBy(day);
+}
+
+// Total XP, weighted by rating (Easy worth more). Single source of truth for the
+// weights is xpForRating in lib/progress.
+export function getTotalXp(): number {
+  const rows = db
+    .select({ rating: reviewLogs.rating, n: sql<number>`count(*)` })
+    .from(reviewLogs)
+    .groupBy(reviewLogs.rating)
+    .all();
+  return rows.reduce((sum, r) => sum + r.n * xpForRating(r.rating), 0);
 }
 
 // --- Decks -----------------------------------------------------------------

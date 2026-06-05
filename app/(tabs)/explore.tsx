@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassSurface } from '@/components/glass-surface';
 import { ThemedText } from '@/components/themed-text';
 import { Colors, Spacing } from '@/constants/theme';
-import { dailyReviewCounts } from '@/db/queries';
+import { dailyReviewCounts, getTotalXp } from '@/db/queries';
 import { computeProgress, localDay, MOTIVATION, weeklyCounts } from '@/lib/progress';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -18,15 +18,17 @@ export default function ProgressScreen() {
   const colors = Colors[scheme];
   const today = localDay(new Date());
   const [data, setData] = useState(() => dailyReviewCounts().all());
+  const [totalXp, setTotalXp] = useState(() => getTotalXp());
   const [message, setMessage] = useState(MOTIVATION[0]);
   // Re-read review history + pick a fresh motivational line on each visit.
   useFocusEffect(
     useCallback(() => {
       setData(dailyReviewCounts().all());
+      setTotalXp(getTotalXp());
       setMessage(MOTIVATION[Math.floor(Math.random() * MOTIVATION.length)]);
     }, [])
   );
-  const p = computeProgress(data, today);
+  const p = computeProgress(data, today, totalXp);
 
   const bg: [string, string] = scheme === 'dark' ? ['#101114', '#000000'] : ['#EEF2FB', '#F7F8FC'];
   const goalPct = Math.min(p.today / p.goal, 1);

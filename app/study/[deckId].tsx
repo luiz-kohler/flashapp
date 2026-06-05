@@ -14,7 +14,7 @@ import { Colors, Spacing } from '@/constants/theme';
 import { getAllCardsForPractice, getDeck, getReviewsToday, getStudyQueue, recordReview } from '@/db/queries';
 import type { Card } from '@/db/schema';
 import { Rating, type ReviewGrade } from '@/lib/fsrs';
-import { DAILY_GOAL } from '@/lib/progress';
+import { DAILY_GOAL, xpForRating } from '@/lib/progress';
 
 const RATINGS: { grade: ReviewGrade; label: string; color: string }[] = [
   { grade: Rating.Again, label: 'Não sabia', color: '#FF453A' },
@@ -38,7 +38,10 @@ export default function StudyScreen() {
   const [reviewed, setReviewed] = useState(0);
   const [correct, setCorrect] = useState(0);
   const [baseToday] = useState(() => getReviewsToday());
+  const [sessionXp, setSessionXp] = useState(0);
+  const [lastXp, setLastXp] = useState(0);
   const reveal = useRef(new Animated.Value(0)).current;
+  const xpAnim = useRef(new Animated.Value(0)).current;
 
   const sReveal = useAudioPlayer(require('@/assets/sounds/reveal.wav'));
   const sAgain = useAudioPlayer(require('@/assets/sounds/again.wav'));
@@ -84,6 +87,12 @@ export default function StudyScreen() {
       grade === Rating.Again ? Haptics.ImpactFeedbackStyle.Rigid : Haptics.ImpactFeedbackStyle.Light
     );
     playSound(soundByGrade[grade]);
+    // XP by rating (Easy gives the most) with a subtle floating "+X XP".
+    const gained = xpForRating(grade);
+    setLastXp(gained);
+    setSessionXp((n) => n + gained);
+    xpAnim.setValue(0);
+    Animated.timing(xpAnim, { toValue: 1, duration: 900, useNativeDriver: true }).start();
     const outcome = recordReview(current, grade);
     if (grade === Rating.Again) {
       setQueue((q) => [...q, { ...current, ...outcome.card } as Card]);
@@ -133,6 +142,7 @@ export default function StudyScreen() {
               {reviewed} {reviewed === 1 ? 'card revisado' : 'cards revisados'}
               {reviewed > 0 ? ` · ${accuracy}% de acerto` : ''}
             </ThemedText>
+            {sessionXp > 0 && <ThemedText style={styles.doneXp}>+{sessionXp} XP</ThemedText>}
             {goalMet && <ThemedText style={styles.doneGoal}>Meta diária batida! 🎯</ThemedText>}
             <Pressable
               onPress={() => router.back()}
@@ -142,6 +152,20 @@ export default function StudyScreen() {
           </View>
         ) : (
           <View style={styles.center}>
+            {/* Subtle, satisfying "+X XP" floating up on each answer */}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.xpPop,
+                {
+                  opacity: xpAnim.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 1, 0] }),
+                  transform: [
+                    { translateY: xpAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -44] }) },
+                  ],
+                },
+              ]}>
+              <ThemedText style={styles.xpPopText}>+{lastXp} XP</ThemedText>
+            </Animated.View>
             {/* Glass card */}
             <BlurView tint="systemThickMaterialDark" intensity={55} style={styles.card}>
               <ThemedText style={[styles.faceLabel, { color: accent }]}>FRENTE</ThemedText>
@@ -247,6 +271,8 @@ const styles = StyleSheet.create({
   },
   back: { fontSize: 20, color: 'rgba(255,255,255,0.92)', textAlign: 'center', lineHeight: 28 },
   stats: { textAlign: 'center', color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: '600' },
+  xpPop: { position: 'absolute', left: 0, right: 0, top: '36%', alignItems: 'center', zIndex: 10 },
+  xpPopText: { color: '#FFD60A', fontSize: 24, fontWeight: '800' },
 
   revealBtn: {
     height: 56,
@@ -276,6 +302,7 @@ const styles = StyleSheet.create({
   doneTitle: { color: '#fff', fontSize: 26, fontWeight: '700', marginTop: Spacing.two },
   doneSub: { color: 'rgba(255,255,255,0.85)', fontSize: 16, textAlign: 'center' },
   doneGoal: { color: '#FFD60A', fontSize: 16, fontWeight: '700', marginTop: Spacing.one },
+  doneXp: { color: '#FFD60A', fontSize: 20, fontWeight: '800', marginTop: Spacing.one },
   doneBtn: {
     marginTop: Spacing.four,
     backgroundColor: '#fff',
