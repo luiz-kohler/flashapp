@@ -180,7 +180,6 @@ export default function NewCardScreen() {
         </View>
         <TextInput
           style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
-          value={value}
           onChangeText={(t) => {
             setRanges(adjustRanges(value, t, ranges));
             setValue(t);
@@ -191,7 +190,7 @@ export default function NewCardScreen() {
           placeholder={placeholder}
           placeholderTextColor={colors.textSecondary}
           textAlignVertical="top">
-          {renderSpans(value, ranges)}
+          {ranges.length > 0 ? renderSpans(value, ranges) : null}
         </TextInput>
       </>
     );
