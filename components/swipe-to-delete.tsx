@@ -7,8 +7,9 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 
 // Row width ≈ screen width minus the two side paddings (Spacing.four = 24 each).
 const ROW_WIDTH = Dimensions.get('window').width - 48;
-// Must swipe at least 75% of the row to actually delete — avoids accidents.
-const THRESHOLD = ROW_WIDTH * 0.75;
+// Must swipe at least 30% of the row to actually delete — avoids accidents
+// without exigir um arrasto tão longo.
+const THRESHOLD = ROW_WIDTH * 0.3;
 
 type Props = {
   children: ReactNode;
@@ -17,7 +18,7 @@ type Props = {
   radius?: number;
 };
 
-// Full-swipe to delete (no confirmation dialog): drag the row right past ~75%
+// Full-swipe to delete (no confirmation dialog): drag the row right past ~30%
 // and release to delete. Anything shorter springs back untouched. The red fills
 // the whole row (same shape) with just a trash icon as the drag progresses.
 // Requires <GestureHandlerRootView> at the app root.
@@ -48,7 +49,7 @@ export function SwipeToDelete({ children, onConfirm, radius = 16 }: Props) {
           outputRange: [0, 1],
           extrapolate: 'clamp',
         });
-        // Grows a touch as you approach the 75% point — "armed to delete".
+        // Grows a touch as you approach the threshold — "armed to delete".
         const scale = progress.interpolate({
           inputRange: [0, 0.6, 1],
           outputRange: [0.6, 0.95, 1.2],
