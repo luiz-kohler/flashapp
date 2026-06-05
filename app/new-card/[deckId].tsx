@@ -109,9 +109,6 @@ export default function NewCardScreen() {
           showsVerticalScrollIndicator={false}>
           {field('FRENTE', front, setFront, frontSel, setFrontSel, 'Pergunta ou termo', true)}
           {field('VERSO', back, setBack, backSel, setBackSel, 'Resposta')}
-          <ThemedText style={[styles.hint, { color: colors.textSecondary }]}>
-            Dica: selecione um trecho e toque em B para deixar em negrito.
-          </ThemedText>
 
           <Pressable
             onPress={save}
@@ -151,7 +148,6 @@ const styles = StyleSheet.create({
   boldBtn: { width: 34, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   boldText: { fontSize: 16, fontWeight: '800' },
   input: { minHeight: 96, borderRadius: 16, padding: Spacing.three, fontSize: 17, lineHeight: 23 },
-  hint: { fontSize: 13, marginTop: Spacing.two },
   saveBtn: {
     height: 54,
     borderRadius: 16,
