@@ -13,6 +13,29 @@ import { Colors, Spacing } from '@/constants/theme';
 import { createDeck, decksWithCounts, deleteDeck, updateDeck } from '@/db/queries';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
+// Compact "time since last study" label (e.g. "5m", "3h", "2d"). Returns null
+// when the deck was never studied so the caller can hide the label entirely.
+// Months use 30d and years use 365d — close enough for a glanceable hint.
+function formatTimeSince(ms: number | null): string | null {
+  if (ms == null) return null;
+  const diff = Date.now() - ms;
+  if (diff < 0) return null;
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  const w = Math.floor(d / 7);
+  if (d < 30) return `${w}w ago`;
+  const mo = Math.floor(d / 30);
+  if (d < 365) return `${mo}mo ago`;
+  const y = Math.floor(d / 365);
+  return `${y}y ago`;
+}
+
 export default function DecksScreen() {
   const scheme = useColorScheme() ?? 'light';
   const colors = Colors[scheme];
@@ -119,14 +142,13 @@ export default function DecksScreen() {
                 <View style={styles.deckInfo}>
                   <ThemedText style={styles.deckName}>{item.name}</ThemedText>
                   <ThemedText style={[styles.deckMeta, { color: colors.textSecondary }]}>
-                    {item.due > 0 ? `${item.due} due · ` : ''}
                     {item.total} {item.total === 1 ? 'card' : 'cards'}
                   </ThemedText>
                 </View>
-                {item.due > 0 && (
-                  <View style={[styles.dueBadge, { backgroundColor: item.color }]}>
-                    <ThemedText style={styles.dueBadgeText}>{item.due}</ThemedText>
-                  </View>
+                {formatTimeSince(item.lastStudied) && (
+                  <ThemedText style={[styles.lastStudied, { color: colors.textSecondary }]}>
+                    {formatTimeSince(item.lastStudied)}
+                  </ThemedText>
                 )}
               </GlassSurface>
             </Pressable>
@@ -186,13 +208,5 @@ const styles = StyleSheet.create({
   deckInfo: { flex: 1, gap: 2 },
   deckName: { fontSize: 17, fontWeight: '600' },
   deckMeta: { fontSize: 13, lineHeight: 18 },
-  dueBadge: {
-    minWidth: 26,
-    height: 26,
-    borderRadius: 13,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dueBadgeText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  lastStudied: { fontSize: 12, fontVariant: ['tabular-nums'] },
 });
