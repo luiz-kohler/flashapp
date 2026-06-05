@@ -13,6 +13,9 @@ export type Progress = {
   totalReviews: number;
   xp: number; // 10 XP per review
   level: number;
+  xpIntoLevel: number; // XP earned within the current level
+  xpForNext: number; // XP span of the current level
+  levelProgress: number; // 0..1 toward the next level
   last7: DailyCount[]; // oldest -> newest, for the mini chart
 };
 
@@ -57,6 +60,10 @@ export function computeProgress(rows: DailyCount[], today: string, goal = DAILY_
   }
 
   const xp = totalReviews * 10;
+  const level = levelForXp(xp);
+  const levelFloor = (level - 1) ** 2 * 100; // XP where this level starts
+  const xpForNext = level ** 2 * 100 - levelFloor; // XP span of this level
+  const xpIntoLevel = xp - levelFloor;
   return {
     today: todayCount,
     goal,
@@ -64,7 +71,10 @@ export function computeProgress(rows: DailyCount[], today: string, goal = DAILY_
     streak,
     totalReviews,
     xp,
-    level: levelForXp(xp),
+    level,
+    xpIntoLevel,
+    xpForNext,
+    levelProgress: xpForNext > 0 ? xpIntoLevel / xpForNext : 0,
     last7,
   };
 }
@@ -86,3 +96,15 @@ export function weeklyCounts(rows: DailyCount[], today: string, weeks = 8): Dail
   }
   return out;
 }
+
+// Rotating motivational lines shown under the level on the Progresso tab.
+export const MOTIVATION = [
+  'Cada revisão te leva mais perto do próximo nível 🚀',
+  'Constância vence intensidade — só mais alguns hoje!',
+  'Seu cérebro adora repetição espaçada. Bora! 🧠',
+  'Faltam poucos XP pro próximo nível — você consegue!',
+  'Pequenos passos diários viram grande progresso 📈',
+  'Revisar agora é lembrar amanhã ✨',
+  'Mantém o ritmo: o próximo nível está logo ali!',
+  'Disciplina hoje, conhecimento pra sempre 💪',
+];

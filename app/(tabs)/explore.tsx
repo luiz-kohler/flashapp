@@ -1,5 +1,6 @@
-import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,7 +8,7 @@ import { GlassSurface } from '@/components/glass-surface';
 import { ThemedText } from '@/components/themed-text';
 import { Colors, Spacing } from '@/constants/theme';
 import { dailyReviewCounts } from '@/db/queries';
-import { computeProgress, localDay, weeklyCounts } from '@/lib/progress';
+import { computeProgress, localDay, MOTIVATION, weeklyCounts } from '@/lib/progress';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']; // Dom..Sáb
@@ -15,14 +16,22 @@ const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']; // Dom..Sáb
 export default function ProgressScreen() {
   const scheme = useColorScheme() ?? 'light';
   const colors = Colors[scheme];
-  const { data } = useLiveQuery(dailyReviewCounts());
   const today = localDay(new Date());
-  const p = computeProgress(data ?? [], today);
+  const [data, setData] = useState(() => dailyReviewCounts().all());
+  const [message, setMessage] = useState(MOTIVATION[0]);
+  // Re-read review history + pick a fresh motivational line on each visit.
+  useFocusEffect(
+    useCallback(() => {
+      setData(dailyReviewCounts().all());
+      setMessage(MOTIVATION[Math.floor(Math.random() * MOTIVATION.length)]);
+    }, [])
+  );
+  const p = computeProgress(data, today);
 
   const bg: [string, string] = scheme === 'dark' ? ['#101114', '#000000'] : ['#EEF2FB', '#F7F8FC'];
   const goalPct = Math.min(p.today / p.goal, 1);
   const maxBar = Math.max(...p.last7.map((d) => d.count), p.goal, 1);
-  const weekly = weeklyCounts(data ?? [], today);
+  const weekly = weeklyCounts(data, today);
   const maxWeek = Math.max(...weekly.map((d) => d.count), 1);
 
   return (
@@ -64,17 +73,27 @@ export default function ProgressScreen() {
             </ThemedText>
           </GlassSurface>
 
-          {/* Level + total */}
-          <View style={styles.statsRow}>
-            <GlassSurface radius={18} style={styles.statCard}>
-              <ThemedText style={[styles.statValue, { color: colors.tint }]}>Nv {p.level}</ThemedText>
-              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>{p.xp} XP</ThemedText>
-            </GlassSurface>
-            <GlassSurface radius={18} style={styles.statCard}>
-              <ThemedText style={styles.statValue}>{p.totalReviews}</ThemedText>
-              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>revisões totais</ThemedText>
-            </GlassSurface>
-          </View>
+          {/* Level + next-level progress */}
+          <GlassSurface radius={22} style={styles.card}>
+            <View style={styles.rowBetween}>
+              <ThemedText style={styles.cardTitle}>Nível {p.level}</ThemedText>
+              <ThemedText style={[styles.cardSub, { color: colors.textSecondary }]}>
+                {p.xpIntoLevel}/{p.xpForNext} XP
+              </ThemedText>
+            </View>
+            <View style={[styles.track, { backgroundColor: colors.tabIconDefault + '40' }]}>
+              <View
+                style={[
+                  styles.fill,
+                  { width: `${Math.min(p.levelProgress, 1) * 100}%`, backgroundColor: colors.tint },
+                ]}
+              />
+            </View>
+            <ThemedText style={[styles.levelMsg, { color: colors.tint }]}>{message}</ThemedText>
+            <ThemedText style={[styles.cardSub, { color: colors.textSecondary }]}>
+              {p.totalReviews} {p.totalReviews === 1 ? 'revisão' : 'revisões'} no total
+            </ThemedText>
+          </GlassSurface>
 
           {/* Last 7 days */}
           <GlassSurface radius={22} style={styles.card}>
@@ -151,6 +170,7 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardTitle: { fontSize: 17, fontWeight: '700' },
   cardSub: { fontSize: 14 },
+  levelMsg: { fontSize: 14, fontWeight: '600', marginTop: Spacing.one },
   track: { height: 12, borderRadius: 6, overflow: 'hidden', marginVertical: Spacing.one },
   fill: { height: 12, borderRadius: 6 },
   statsRow: { flexDirection: 'row', gap: Spacing.three },

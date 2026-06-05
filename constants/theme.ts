@@ -5,8 +5,9 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+// App accent — a vivid indigo/violet (energetic + Apple-like).
+const tintColorLight = '#6C5CE7';
+const tintColorDark = '#8B7BFF';
 
 export const Colors = {
   light: {

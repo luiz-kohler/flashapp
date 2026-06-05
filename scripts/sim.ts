@@ -183,6 +183,8 @@ console.log('\nS5 — Gamificação: ofensiva, meta diária e XP');
   check('Meta batida (>=21)', p.goalMet === true);
   check('Ofensiva = 3 dias consecutivos', p.streak === 3, `(${p.streak})`);
   check('XP = total*10 = 510', p.xp === 510, `(${p.xp})`);
+  check('Nível 3 com 510 XP', p.level === 3, `(${p.level})`);
+  check('Progresso no nível = 110/500 XP', p.xpIntoLevel === 110 && p.xpForNext === 500, `(${p.xpIntoLevel}/${p.xpForNext})`);
   check('Últimos 7 dias = 7 colunas terminando em hoje', p.last7.length === 7 && p.last7[6].day === today);
 
   // No review today + a gap → streak counts only yesterday.

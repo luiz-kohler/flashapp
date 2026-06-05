@@ -10,7 +10,7 @@ export const decks = sqliteTable('decks', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
   emoji: text('emoji').notNull().default('📚'),
-  color: text('color').notNull().default('#0a7ea4'),
+  color: text('color').notNull().default('#6C5CE7'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().default(nowMs),
 });
 
