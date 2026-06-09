@@ -44,24 +44,16 @@ export function cardsInDeck(deckId: number) {
 // FSRS retrievability + the user's lapse history to pick what to study now.
 export type StudyOrder = 'shuffle' | 'recent' | 'oldest' | 'recommended';
 
-// Per-card review-history stats for the whole deck, in one query. Recent
-// lapses use a 14-day window (see RECENT_WINDOW_DAYS) — long enough to catch
-// "still struggling" cards, short enough that a card you've since mastered
-// doesn't keep getting penalized forever. Returns a Map for O(1) lookup by
-// the recommender; cards with no logs simply aren't in the map and default
-// to zero in the consumer.
-export function getCardStatsForDeck(deckId: number): Map<number, CardStats> {
+// Fold raw "Again"-rated review rows into per-card lapse stats. Recent lapses
+// use a 14-day window (see RECENT_WINDOW_DAYS) — long enough to catch "still
+// struggling" cards, short enough that a card you've since mastered doesn't
+// keep getting penalized forever. Shared by the per-deck and all-decks variants
+// so the window + counting rule live in exactly one place. Cards with no lapses
+// simply aren't in the map and default to zero in the consumer.
+function aggregateLapseStats(
+  rows: { cardId: number; rating: number; review: Date }[]
+): Map<number, CardStats> {
   const sinceMs = Date.now() - RECENT_WINDOW_DAYS * 86_400_000;
-  const rows = db
-    .select({
-      cardId: reviewLogs.cardId,
-      rating: reviewLogs.rating,
-      review: reviewLogs.review,
-    })
-    .from(reviewLogs)
-    .innerJoin(cards, eq(cards.id, reviewLogs.cardId))
-    .where(eq(cards.deckId, deckId))
-    .all();
   const map = new Map<number, CardStats>();
   for (const r of rows) {
     if (r.rating !== Rating.Again) continue;
@@ -73,6 +65,27 @@ export function getCardStatsForDeck(deckId: number): Map<number, CardStats> {
   return map;
 }
 
+// Per-card review-history stats for ONE deck — for that deck's 'recommended' sort.
+export function getCardStatsForDeck(deckId: number): Map<number, CardStats> {
+  const rows = db
+    .select({ cardId: reviewLogs.cardId, rating: reviewLogs.rating, review: reviewLogs.review })
+    .from(reviewLogs)
+    .innerJoin(cards, eq(cards.id, reviewLogs.cardId))
+    .where(eq(cards.deckId, deckId))
+    .all();
+  return aggregateLapseStats(rows);
+}
+
+// Same stats but across EVERY deck — for the cross-deck "mixed" session. No
+// join needed: review_logs already keys by cardId and we want all of them.
+export function getCardStatsAllDecks(): Map<number, CardStats> {
+  const rows = db
+    .select({ cardId: reviewLogs.cardId, rating: reviewLogs.rating, review: reviewLogs.review })
+    .from(reviewLogs)
+    .all();
+  return aggregateLapseStats(rows);
+}
+
 function applyOrder<T extends { createdAt: Date }>(arr: T[], order: StudyOrder): T[] {
   if (order === 'recent') {
     return [...arr].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -80,9 +93,9 @@ function applyOrder<T extends { createdAt: Date }>(arr: T[], order: StudyOrder):
   if (order === 'oldest') {
     return [...arr].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
-  // 'recommended' is handled at the getStudySession level (it needs per-card
-  // history stats that aren't available from createdAt alone). Anything else
-  // falls back to shuffle — the historical default.
+  // 'recommended' is handled in buildSession (it needs per-card history stats
+  // that aren't available from createdAt alone). Anything else falls back to
+  // shuffle — the historical default.
   return shuffle(arr);
 }
 
@@ -90,7 +103,7 @@ function applyOrder<T extends { createdAt: Date }>(arr: T[], order: StudyOrder):
 // 'all' for no cap. Default lives in the UI.
 export type SessionLimit = number | 'all';
 
-// Builds a session of up to `limit` cards from the deck. FSRS-due cards take
+// Builds a session of up to `limit` cards from a pool. FSRS-due cards take
 // priority (in due-asc order so the most overdue come first); if there aren't
 // enough due, we fill from non-due cards (also due-asc, i.e. the ones closest
 // to becoming due come next). This is what lets the user keep a meaningful
@@ -100,23 +113,43 @@ export type SessionLimit = number | 'all';
 //
 // `order` (shuffle/recent/oldest) is applied LAST, within the selected set —
 // the selection rule (due-first) decides which cards go in, the order rule
-// decides the sequence the user sees them.
-export function getStudySession(
-  deckId: number,
+// decides the sequence the user sees them. `statsFor` is a thunk so the
+// (potentially expensive) lapse-history query only runs for 'recommended'.
+function buildSession(
+  pool: Card[],
   order: StudyOrder,
-  limit: SessionLimit
+  limit: SessionLimit,
+  now: number,
+  statsFor: () => Map<number, CardStats>
 ): Card[] {
-  const now = Date.now();
-  const all = db.select().from(cards).where(eq(cards.deckId, deckId)).all();
   const byDueAsc = (a: Card, b: Card) => a.due.getTime() - b.due.getTime();
-  const due = all.filter((c) => c.due.getTime() <= now).sort(byDueAsc);
-  const notDue = all.filter((c) => c.due.getTime() > now).sort(byDueAsc);
+  const due = pool.filter((c) => c.due.getTime() <= now).sort(byDueAsc);
+  const notDue = pool.filter((c) => c.due.getTime() > now).sort(byDueAsc);
   const prioritized = [...due, ...notDue];
   const picked = limit === 'all' ? prioritized : prioritized.slice(0, limit);
   if (order === 'recommended') {
-    return recommendedOrder(picked, getCardStatsForDeck(deckId), new Date(now));
+    return recommendedOrder(picked, statsFor(), new Date(now));
   }
   return applyOrder(picked, order);
+}
+
+// Single-deck study session.
+export function getStudySession(deckId: number, order: StudyOrder, limit: SessionLimit): Card[] {
+  const now = Date.now();
+  const all = db.select().from(cards).where(eq(cards.deckId, deckId)).all();
+  return buildSession(all, order, limit, now, () => getCardStatsForDeck(deckId));
+}
+
+// Cross-deck "mixed" study session: pools cards from EVERY deck, then runs the
+// same due-first selection + ordering. Powers the "Study all decks" button on
+// the decks screen. Mixing subjects in one sitting is itself a memory technique
+// — interleaved practice (e.g. English + German + Spanish together) beats
+// blocked practice for long-term retention — so a mixed session is a
+// recommended way to review several decks, not just a shortcut.
+export function getStudySessionAllDecks(order: StudyOrder, limit: SessionLimit): Card[] {
+  const now = Date.now();
+  const all = db.select().from(cards).all();
+  return buildSession(all, order, limit, now, getCardStatsAllDecks);
 }
 
 // --- Gamification (derived from review history) -----------------------------

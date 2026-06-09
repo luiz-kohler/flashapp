@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassSurface } from '@/components/glass-surface';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
 import { ThemedText } from '@/components/themed-text';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, Spacing } from '@/constants/theme';
 import { createDeck, decksWithCounts, deleteDeck, updateDeck } from '@/db/queries';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -92,6 +93,27 @@ export default function DecksScreen() {
     });
   }
 
+  // Start a cross-deck "mixed" session — 21 cards drawn from EVERY deck, ordered
+  // by the science-backed 'recommended' rule (FSRS retrievability + lapse
+  // history). Interleaving subjects in one sitting (e.g. English + German +
+  // Spanish) is itself a memory technique: interleaved practice beats blocked
+  // practice for long-term retention. The study screen handles deckId='all'.
+  function startMixedSession() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push({
+      pathname: '/study/[deckId]',
+      params: { deckId: 'all', sort: 'recommended', limit: '21' },
+    });
+  }
+
+  // Total cards across all decks — drives the mixed-session card's label and
+  // whether it's worth showing at all.
+  const totalCards = decks.reduce((sum, d) => sum + d.total, 0);
+  // Only offer "Study all decks" when mixing is actually meaningful: ≥2 decks
+  // with at least one card between them. With a single deck it'd just duplicate
+  // that deck's own play button.
+  const showMixed = decks.length >= 2 && totalCards > 0;
+
   const bg: [string, string] =
     scheme === 'dark' ? ['#101114', '#000000'] : ['#EEF2FB', '#F7F8FC'];
 
@@ -110,6 +132,30 @@ export default function DecksScreen() {
             </GlassSurface>
           </Pressable>
         </View>
+
+        {showMixed && (
+          <Pressable
+            onPress={startMixedSession}
+            style={({ pressed }) => [
+              styles.mixedShadow,
+              { opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] },
+            ]}>
+            <GlassSurface radius={20} style={styles.mixedRow}>
+              <View style={[styles.mixedIcon, { backgroundColor: colors.tint + '1F' }]}>
+                <IconSymbol name="rectangle.stack.fill" size={20} color={colors.tint} />
+              </View>
+              <View style={styles.mixedText}>
+                <ThemedText style={styles.mixedTitle}>Study all decks</ThemedText>
+                <ThemedText style={[styles.mixedSub, { color: colors.textSecondary }]}>
+                  Mixed session · {Math.min(totalCards, 21)} cards
+                </ThemedText>
+              </View>
+              <View style={[styles.mixedPlay, { backgroundColor: colors.tint }]}>
+                <IconSymbol name="play.fill" size={18} color="#fff" />
+              </View>
+            </GlassSurface>
+          </Pressable>
+        )}
 
         <FlatList
           data={decks}
@@ -179,6 +225,36 @@ const styles = StyleSheet.create({
   },
   addButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
   addButtonText: { fontSize: 22, lineHeight: 24, fontWeight: '500' },
+  // "Study all decks" CTA — sits above the deck list as a primary action.
+  mixedShadow: {
+    borderRadius: 20,
+    marginBottom: Spacing.three,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  mixedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    padding: Spacing.three,
+  },
+  mixedIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  mixedText: { flex: 1, gap: 2 },
+  mixedTitle: { fontSize: 17, fontWeight: '700' },
+  mixedSub: { fontSize: 13, lineHeight: 18 },
+  mixedPlay: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+  },
   list: { gap: Spacing.two, paddingBottom: 120 },
   empty: { textAlign: 'center', marginTop: Spacing.six, fontSize: 15, lineHeight: 22 },
   cardShadow: {

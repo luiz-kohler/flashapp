@@ -20,7 +20,7 @@ import { RichText } from '@/components/rich-text';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, Spacing } from '@/constants/theme';
-import { getDeck, getReviewsToday, getStudySession, recordReview, type SessionLimit, type StudyOrder } from '@/db/queries';
+import { getDeck, getReviewsToday, getStudySession, getStudySessionAllDecks, recordReview, type SessionLimit, type StudyOrder } from '@/db/queries';
 import type { Card } from '@/db/schema';
 import { Rating, type ReviewGrade } from '@/lib/fsrs';
 import { DAILY_GOAL, xpForRating } from '@/lib/progress';
@@ -118,6 +118,10 @@ function RatingButton({
 
 export default function StudyScreen() {
   const { deckId, sort, limit } = useLocalSearchParams<{ deckId: string; sort?: string; limit?: string }>();
+  // `deckId === 'all'` is the cross-deck "mixed" session launched from the decks
+  // screen: pull the queue from every deck instead of one. Each Card still
+  // carries its own deckId, so recordReview (keyed by card.id) works unchanged.
+  const isAllDecks = deckId === 'all';
   const did = Number(deckId);
   // Order chosen on the deck screen (shuffle/recent/oldest/recommended).
   // Falls back to shuffle — the historical default — for any unknown value so
@@ -134,10 +138,14 @@ export default function StudyScreen() {
   // (due-first, filled from non-due). Default 20 mirrors the deck screen.
   const parsedLimit: SessionLimit =
     limit === 'all' ? 'all' : Number.isFinite(Number(limit)) && Number(limit) > 0 ? Number(limit) : 20;
-  const deck = useMemo(() => getDeck(did), [did]);
-  const accent = deck?.color ?? Colors.light.tint;
+  const deck = useMemo(() => (isAllDecks ? undefined : getDeck(did)), [isAllDecks, did]);
+  // A mixed session has no single deck color → use the app accent. On the
+  // always-dark study background the dark-scheme tint reads best.
+  const accent = isAllDecks ? Colors.dark.tint : deck?.color ?? Colors.light.tint;
 
-  const [queue, setQueue] = useState<Card[]>(() => getStudySession(did, order, parsedLimit));
+  const [queue, setQueue] = useState<Card[]>(() =>
+    isAllDecks ? getStudySessionAllDecks(order, parsedLimit) : getStudySession(did, order, parsedLimit)
+  );
   const [pos, setPos] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [reviewed, setReviewed] = useState(0);

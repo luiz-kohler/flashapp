@@ -108,6 +108,37 @@ function getStudySession(deckId: number, order: StudyOrder, limit: SessionLimit,
   }
   return applyOrder(picked, order);
 }
+// Mirrors getCardStatsAllDecks in db/queries.ts — lapse stats across every deck.
+function getCardStatsAllDecks(now: Date): Map<number, CardStats> {
+  const sinceMs = now.getTime() - 14 * DAY;
+  const rows = db
+    .select({ cardId: reviewLogs.cardId, rating: reviewLogs.rating, review: reviewLogs.review })
+    .from(reviewLogs)
+    .all();
+  const map = new Map<number, CardStats>();
+  for (const r of rows) {
+    if (r.rating !== Rating.Again) continue;
+    const entry = map.get(r.cardId) ?? { recentLapseCount: 0, totalLapses: 0 };
+    entry.totalLapses++;
+    if (r.review.getTime() >= sinceMs) entry.recentLapseCount++;
+    map.set(r.cardId, entry);
+  }
+  return map;
+}
+// Mirrors getStudySessionAllDecks in db/queries.ts — pools cards from EVERY
+// deck (no deckId filter), then the same due-first selection + ordering.
+function getStudySessionAllDecks(order: StudyOrder, limit: SessionLimit, now: Date): Card[] {
+  const all = db.select().from(cards).all();
+  const byDueAsc = (a: Card, b: Card) => a.due.getTime() - b.due.getTime();
+  const due = all.filter((c) => c.due.getTime() <= now.getTime()).sort(byDueAsc);
+  const notDue = all.filter((c) => c.due.getTime() > now.getTime()).sort(byDueAsc);
+  const prioritized = [...due, ...notDue];
+  const picked = limit === 'all' ? prioritized : prioritized.slice(0, limit);
+  if (order === 'recommended') {
+    return recommendedOrder(picked, getCardStatsAllDecks(now), now);
+  }
+  return applyOrder(picked, order);
+}
 function review(card: Card, grade: ReviewGrade, now: Date): Card {
   const outcome = reviewCard(card, grade, now);
   db.transaction((tx) => {
@@ -431,6 +462,47 @@ console.log('\nS9 — Recommended order (FSRS + lapse history + warmup + interle
       `(first=${q[0].front})`
     );
   }
+}
+
+// === S10: cross-deck "mixed" session pools cards from every deck ============
+console.log('\nS10 — Mixed session (Study all decks) pools across decks');
+{
+  const tMix = new Date(t0.getTime() + 10 * DAY);
+  // Three subject decks, like Luiz's English / German / Spanish use case.
+  const en = createDeck('English');
+  const de = createDeck('German');
+  const es = createDeck('Spanish');
+  for (const d of [en, de, es]) {
+    for (let i = 0; i < 3; i++) createCard(d.id, `${d.name}-${i}`, '.', tMix);
+  }
+  const totalInDb = db.select().from(cards).all().length;
+
+  // 'all' limit → every card in the DB, regardless of which deck it's in.
+  const full = getStudySessionAllDecks('shuffle', 'all', tMix);
+  check('Mixed "all" pools every card across decks', full.length === totalInDb, `(${full.length}/${totalInDb})`);
+
+  // All three subject decks are represented in the pooled session.
+  const deckIdsInFull = new Set(full.map((c) => c.deckId));
+  check(
+    'Mixed session contains cards from English, German AND Spanish',
+    deckIdsInFull.has(en.id) && deckIdsInFull.has(de.id) && deckIdsInFull.has(es.id)
+  );
+
+  // Numeric cap holds across decks (the DB already has well over 21 cards).
+  const cap = getStudySessionAllDecks('shuffle', 21, tMix);
+  check('Mixed session caps at 21 when limit=21', cap.length === 21, `(${cap.length})`);
+
+  // Due-first selection: there are far more than 21 due cards by now, so a
+  // tight cap should pick only currently-due cards (none scheduled in the future).
+  check(
+    'Capped mixed session picks only due cards (due-first)',
+    cap.every((c) => c.due.getTime() <= tMix.getTime())
+  );
+
+  // 'recommended' ordering runs on the cross-deck pool without choking and
+  // still honors the cap.
+  const rec = getStudySessionAllDecks('recommended', 21, tMix);
+  check('Recommended order works on the cross-deck pool', rec.length === 21, `(${rec.length})`);
 }
 
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
